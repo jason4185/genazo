@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>Genazo — The Daily GenLayer Riddle</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>Ψ</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="/styles.css"/>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- ── Landing ───────────────────────────────────────────────────────────── -->
+<div id="screen-landing" class="screen active">
+  <div class="grid-bg"></div>
+  <div class="landing-inner">
+    <div class="landing-glow"></div>
+    <div class="landing-logo-section">
+      <div class="logo-icon">Ψ</div>
+      <div class="logo-wordmark"><span class="logo-gen">GEN</span><span class="logo-azo">AZO</span></div>
+      <div class="logo-powered">powered by genlayer</div>
+    </div>
+    <div class="landing-heading">
+      <h1 class="landing-title">One riddle a day.<br>Real competition.</h1>
+      <p class="landing-sub">Build streaks. Earn points. Climb the global leaderboard.</p>
+    </div>
+    <div class="landing-form">
+      <input id="inp-nickname" type="text" class="form-input" placeholder="Choose a nickname…" maxlength="20" autocomplete="off" spellcheck="false" oninput="onNicknameInput(this)" onkeydown="if(event.key==='Enter')enterGame()"/>
+      <div id="nick-error" class="form-error hidden">3–20 chars, letters &amp; numbers only</div>
+      <button id="btn-play" class="btn btn-primary btn-full" onclick="enterGame()" disabled>Enter the Arena</button>
+    </div>
+    <div class="landing-preview">
+      <div class="preview-label">Today's top players</div>
+      <div id="landing-top3" class="preview-list">
+        <div class="preview-empty">Play to see the leaderboard</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Home ──────────────────────────────────────────────────────────────── -->
+<div id="screen-home" class="screen has-nav">
+  <div class="grid-bg"></div>
+  <header class="app-header">
+    <div class="app-logo"><span class="logo-gen">GEN</span><span class="logo-azo">AZO</span></div>
+    <div class="header-user">
+      <div class="user-chip">
+        <div class="user-avatar">?</div>
+        <span id="home-nick" class="user-name"></span>
+      </div>
+    </div>
+  </header>
+  <div class="stats-row">
+    <div class="stat-pill"><span class="stat-pill-val" id="stat-streak">0</span><span class="stat-pill-lbl">Streak</span></div>
+    <div class="stat-pill"><span class="stat-pill-val" id="stat-score">0</span><span class="stat-pill-lbl">Score</span></div>
+    <div class="stat-pill"><span class="stat-pill-val" id="stat-rank">#—</span><span class="stat-pill-lbl">Rank</span></div>
+    <div class="stat-pill"><span class="stat-pill-val" id="stat-day">—</span><span class="stat-pill-lbl">Day</span></div>
+  </div>
+  <div class="screen-body">
+    <div class="container" id="home-body">
+      <div class="loading-wrap">
+        <div class="spinner-lg"></div>
+        <p>Loading today's riddle…</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Result ─────────────────────────────────────────────────────────────── -->
+<div id="screen-result" class="screen has-nav">
+  <div class="grid-bg"></div>
+  <div class="screen-body">
+    <div class="result-screen">
+
+      <div id="confetti-container" class="confetti-container"></div>
+
+      <div id="result-icon-wrap" class="result-icon-wrap correct-mode">
+        <i id="result-icon" class="ti ti-circle-check result-icon-symbol"></i>
+        <div class="result-icon-ring"></div>
+      </div>
+
+      <div class="result-score-section">
+        <div id="result-label" class="result-outcome-label correct">CORRECT!</div>
+        <div id="score-display" class="score-big">+100</div>
+        <div id="score-breakdown" class="score-sub">100 pts</div>
+      </div>
+
+      <div id="streak-block" class="streak-block">
+        <i class="ti ti-flame streak-icon"></i>
+        <span id="streak-text" class="streak-text">1 Day Streak</span>
+      </div>
+
+      <div class="answer-reveal-panel">
+        <div class="reveal-panel-label">Correct Answer</div>
+        <div id="correct-answer-text" class="reveal-panel-answer"></div>
+        <div id="explanation-text" class="reveal-panel-exp"></div>
+      </div>
+
+      <div class="community-panel">
+        <div id="community-title" class="community-panel-title">Community today</div>
+        <div id="community-list" class="community-panel-list"></div>
+      </div>
+
+      <div class="come-back-msg">Come back tomorrow for a new riddle</div>
+
+      <div class="result-action-btns">
+        <button class="btn btn-primary" onclick="shareResult()"><i class="ti ti-share"></i> Share Result</button>
+        <button class="btn btn-outline" onclick="showLeaderboard()"><i class="ti ti-trophy"></i> Leaderboard</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Leaderboard ────────────────────────────────────────────────────────── -->
+<div id="screen-leaderboard" class="screen has-nav">
+  <div class="grid-bg"></div>
+  <div class="screen-body">
+    <div class="container">
+      <div class="screen-header">
+        <h2 class="screen-title">Leaderboard</h2>
+        <p class="screen-sub">Season 1 · The Oracle Trials</p>
+      </div>
+      <div class="lb-tabs">
+        <button id="lb-tab-alltime" class="lb-tab" onclick="loadLeaderboard('alltime')">All Time</button>
+        <button id="lb-tab-week"    class="lb-tab" onclick="loadLeaderboard('week')">This Week</button>
+        <button id="lb-tab-today"   class="lb-tab active" onclick="loadLeaderboard('today')">Today</button>
+      </div>
+      <div id="lb-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Profile ────────────────────────────────────────────────────────────── -->
+<div id="screen-profile" class="screen has-nav">
+  <div class="grid-bg"></div>
+  <div class="screen-body">
+    <div class="container">
+      <div class="profile-card">
+        <div id="profile-av" class="profile-av">?</div>
+        <div id="profile-name" class="profile-name">—</div>
+        <div class="profile-title">Oracle in Training</div>
+      </div>
+      <div class="xp-section">
+        <div class="xp-header">
+          <span id="xp-level" class="xp-level-lbl">Level 1</span>
+          <span id="xp-text" class="xp-pts-lbl">0 / 200 XP</span>
+        </div>
+        <div class="xp-bar-wrap">
+          <div id="xp-bar" class="xp-bar" style="width:0%"></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-block stat-block--orange">
+          <div id="st-streak" class="stat-block-val">0</div>
+          <div class="stat-block-lbl">Streak</div>
+        </div>
+        <div class="stat-block stat-block--purple">
+          <div id="st-total" class="stat-block-val">0</div>
+          <div class="stat-block-lbl">Total Points</div>
+        </div>
+        <div class="stat-block">
+          <div id="st-answered" class="stat-block-val">0</div>
+          <div class="stat-block-lbl">Days Played</div>
+        </div>
+        <div class="stat-block stat-block--teal">
+          <div id="st-longest" class="stat-block-val">0</div>
+          <div class="stat-block-lbl">Best Streak</div>
+        </div>
+      </div>
+      <div class="accuracy-section">
+        <div class="accuracy-label">Accuracy: <span id="st-accuracy">0 / 0 (0%)</span></div>
+        <div class="accuracy-bar-wrap">
+          <div id="accuracy-bar" class="accuracy-bar" style="width:0%"></div>
+        </div>
+      </div>
+      <div class="achievements-section">
+        <div class="achievements-title">Achievements</div>
+        <div class="achievements-grid">
+          <div class="achievement" id="ach-first">
+            <div class="ach-icon">🎯</div>
+            <div class="ach-name">First Blood</div>
+            <div class="ach-desc">Answer correctly</div>
+          </div>
+          <div class="achievement" id="ach-streak7">
+            <div class="ach-icon">🔥</div>
+            <div class="ach-name">Week Warrior</div>
+            <div class="ach-desc">7-day streak</div>
+          </div>
+          <div class="achievement" id="ach-scholar">
+            <div class="ach-icon">📚</div>
+            <div class="ach-name">Scholar</div>
+            <div class="ach-desc">Play 30 days</div>
+          </div>
+          <div class="achievement" id="ach-legend">
+            <div class="ach-icon">⭐</div>
+            <div class="ach-name">Legend</div>
+            <div class="ach-desc">1000+ points</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Bottom Nav ─────────────────────────────────────────────────────────── -->
+<nav id="bottom-nav" class="bottom-nav hidden">
+  <button id="nav-home" class="nav-btn active" onclick="loadHomeScreen()">
+    <i class="ti ti-home nav-icon"></i>
+    <span class="nav-lbl">Home</span>
+  </button>
+  <button id="nav-lb" class="nav-btn" onclick="showLeaderboard()">
+    <i class="ti ti-trophy nav-icon"></i>
+    <span class="nav-lbl">Ranks</span>
+  </button>
+  <button id="nav-profile" class="nav-btn" onclick="showProfile()">
+    <i class="ti ti-user nav-icon"></i>
+    <span class="nav-lbl">Profile</span>
+  </button>
+</nav>
+
+<script type="module" src="/main.js"></script>
+</body>
+</html>

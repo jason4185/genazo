@@ -1,0 +1,13 @@
+{
+  "name": "genazo-cron",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "genlayer-js": "latest",
+    "node-cron": "latest"
+  },
+  "scripts": {
+    "start": "node cron.js",
+    "generate-now": "node daily-riddle.js"
+  }
+}
