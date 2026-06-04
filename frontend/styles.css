@@ -378,6 +378,11 @@ input { font-family: var(--font-ui); }
   border-radius: 20px;
   background: #12111C;
   border: 1px solid #1E1C2E;
+  transition: background 0.15s, border-color 0.15s;
+}
+.user-chip:hover {
+  background: #1A1830;
+  border-color: #2D2040;
 }
 .user-avatar {
   width: 24px; height: 24px;
