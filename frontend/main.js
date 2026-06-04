@@ -361,7 +361,13 @@ async function loadDailyRiddle() {
 
     if (!parsed?.found) { renderNoRiddle(body); return; }
 
-    allRiddles     = parsed.riddles || [];
+    if (parsed.riddles && Array.isArray(parsed.riddles)) {
+      allRiddles = parsed.riddles;
+    } else if (parsed.riddle) {
+      allRiddles = [parsed.riddle];
+    } else {
+      renderNoRiddle(body); return;
+    }
     S.day          = parsed.day;
     S.totalAnswers = parsed.total_answers || 0;
     S.riddle       = allRiddles[0] || null;
