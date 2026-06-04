@@ -46,10 +46,17 @@ class Genazo(gl.Contract):
         return json.dumps({"success": True, "username": username})
 
     @gl.public.write
-    def generate_daily_riddle(self, session_id: str, docs_url: str):
+    def generate_daily_riddle(self, session_id: str, docs_url: str, riddle_number: int):
+        riddles = json.loads(self.daily_riddles)
         day = json.loads(self.daily_day_number)
-        day += 1
-        self.daily_day_number = json.dumps(day)
+
+        # Increment day only on the first riddle of a fresh day (not on retries)
+        if riddle_number == 1 and not riddles:
+            day += 1
+            self.daily_day_number = json.dumps(day)
+            self.daily_answers = json.dumps({})
+            if day % 7 == 0:
+                self.weekly_leaderboard = json.dumps([])
 
         def fetch() -> str:
             raw = gl.nondet.web.render(
@@ -91,16 +98,14 @@ class Genazo(gl.Contract):
             "Community and culture",
         ]
 
-        riddles = []
+        i = riddle_number - 1
+        topic_index = (day - 1 + i) % len(TOPICS)
+        topic = TOPICS[topic_index]
 
-        for i in range(5):
-            topic_index = (day - 1 + i) % len(TOPICS)
-            topic = TOPICS[topic_index]
+        used_fps = list(fingerprints.keys())
 
-            used_fps = list(fingerprints.keys())
-
-            def generate() -> str:
-                prompt = f"""You are a riddle master for Genazo, the daily GenLayer knowledge game.
+        def generate() -> str:
+            prompt = f"""You are a riddle master for Genazo, the daily GenLayer knowledge game.
 
 GenLayer content:
 {docs}
@@ -115,7 +120,7 @@ BANNED CONCEPTS from recent riddles:
 Used fingerprints — use completely different angle from these:
 {json.dumps(used_fps[:20])}
 
-Generate ONE riddle for Day {day} Riddle {i + 1} of 5.
+Generate ONE riddle for Day {day} Riddle {riddle_number} of 5.
 
 LENGTH RULES:
 - Riddle: 3 to 4 sentences maximum
@@ -154,49 +159,47 @@ Return ONLY valid JSON:
     "explanation": "2 to 3 sentences",
     "fingerprint": "{topic}:unique_angle",
     "day": {day},
-    "riddle_number": {i + 1},
+    "riddle_number": {riddle_number},
     "topic": "{topic}",
     "category": "community or technical"
 }}"""
-                return gl.nondet.exec_prompt(prompt)
+            return gl.nondet.exec_prompt(prompt)
 
-            result = gl.eq_principle.prompt_comparative(
-                generate,
-                f"Both outputs are equivalent if they are both valid JSON riddles specifically about {topic} in the GenLayer ecosystem, even if the riddle text, hint wording, options, and explanation differ completely"
-            )
+        result = gl.eq_principle.prompt_comparative(
+            generate,
+            f"Both outputs are equivalent if they are both valid JSON riddles specifically about {topic} in the GenLayer ecosystem, even if the riddle text, hint wording, options, and explanation differ completely"
+        )
 
-            try:
-                clean = result.strip()
-                if "```json" in clean:
-                    clean = clean.split("```json")[1].split("```")[0].strip()
-                elif "```" in clean:
-                    clean = clean.split("```")[1].split("```")[0].strip()
+        try:
+            clean = result.strip()
+            if "```json" in clean:
+                clean = clean.split("```json")[1].split("```")[0].strip()
+            elif "```" in clean:
+                clean = clean.split("```")[1].split("```")[0].strip()
 
-                riddle = json.loads(clean)
+            riddle = json.loads(clean)
 
-                fp = riddle.get("fingerprint", "")
-                if fp:
-                    fingerprints[fp] = True
-                    self.fingerprints = json.dumps(fingerprints)
+            fp = riddle.get("fingerprint", "")
+            if fp:
+                fingerprints[fp] = True
+                self.fingerprints = json.dumps(fingerprints)
 
-                riddles.append(riddle)
+        except Exception as e:
+            riddle = {
+                "error": str(e)[:100],
+                "riddle_number": riddle_number
+            }
 
-            except Exception as e:
-                riddles.append({
-                    "error": str(e)[:100],
-                    "riddle_number": i + 1
-                })
-
+        # Insert at the correct index, padding with None if needed
+        while len(riddles) < riddle_number:
+            riddles.append(None)
+        riddles[riddle_number - 1] = riddle
         self.daily_riddles = json.dumps(riddles)
-        self.daily_answers = json.dumps({})
-
-        if day % 7 == 0:
-            self.weekly_leaderboard = json.dumps([])
 
         return json.dumps({
             "success": True,
             "day": day,
-            "riddles_generated": len(riddles)
+            "riddle_number": riddle_number
         })
 
     @gl.public.write
