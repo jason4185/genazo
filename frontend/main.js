@@ -28,6 +28,10 @@ const S = {
   homeView: 0, // 0 = community dashboard, 1 = today's riddle
 };
 
+let currentRiddleIndex = 0;
+let allRiddles = [];
+let sessionAnswers = {};
+
 // ── STATS — single source of truth ────────────────────────────────────────
 function getPlayerStats() {
   return {
@@ -127,10 +131,10 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id)?.classList.add('active');
   const nav = document.getElementById('bottom-nav');
-  const hasNav = ['screen-home','screen-result','screen-leaderboard','screen-profile'];
+  const hasNav = ['screen-home','screen-result','screen-leaderboard','screen-profile','screen-final'];
   nav.classList.toggle('hidden', !hasNav.includes(id));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  if (id === 'screen-home' || id === 'screen-result') document.getElementById('nav-home')?.classList.add('active');
+  if (id === 'screen-home' || id === 'screen-result' || id === 'screen-final') document.getElementById('nav-home')?.classList.add('active');
   else if (id === 'screen-leaderboard') document.getElementById('nav-lb')?.classList.add('active');
   else if (id === 'screen-profile')     document.getElementById('nav-profile')?.classList.add('active');
   if (id === 'screen-home') loadDailyRiddle();
@@ -317,9 +321,13 @@ function showTodayRiddle() {
   body.appendChild(wrap);
 
   const lastAnsweredDay = parseInt(localStorage.getItem('genazo_last_answered_day') || '0');
-  if (S.riddle && lastAnsweredDay >= S.day) {
+  if (S.day && lastAnsweredDay >= S.day) {
     renderAnswered(wrap, safeParse(localStorage.getItem('genazo_last_result')));
-  } else if (S.riddle) {
+    return;
+  }
+
+  if (allRiddles.length && currentRiddleIndex < allRiddles.length) {
+    S.riddle = allRiddles[currentRiddleIndex];
     renderRiddle(wrap);
   } else {
     wrap.innerHTML = '<div class="loading-wrap"><div class="spinner-lg"></div><p>Loading…</p></div>';
@@ -337,15 +345,15 @@ async function loadDailyRiddle() {
   updateAllStatDisplays();
   updateRankDisplay();
 
-  // Skip re-fetch if riddle already loaded
-  if (S.riddle && S.day) {
+  // Skip re-fetch if riddles already loaded for today
+  if (allRiddles.length && S.day) {
     const lastAnsweredDay = parseInt(localStorage.getItem('genazo_last_answered_day') || '0');
     if (lastAnsweredDay >= S.day) { await showDashboard(); return; }
     showTodayRiddle(); return;
   }
 
   const body = document.getElementById('home-body');
-  body.innerHTML = `<div class="loading-wrap"><div class="spinner-lg"></div><p>Loading today's riddle…</p></div>`;
+  body.innerHTML = `<div class="loading-wrap"><div class="spinner-lg"></div><p>Loading today's riddles…</p></div>`;
 
   try {
     const raw    = await viewCall('get_daily_riddle', []);
@@ -353,15 +361,24 @@ async function loadDailyRiddle() {
 
     if (!parsed?.found) { renderNoRiddle(body); return; }
 
-    S.riddle       = parsed.riddle;
+    allRiddles     = parsed.riddles || [];
     S.day          = parsed.day;
     S.totalAnswers = parsed.total_answers || 0;
+    S.riddle       = allRiddles[0] || null;
     updateAllStatDisplays();
     updateRankDisplay();
 
     const lastAnsweredDay = parseInt(localStorage.getItem('genazo_last_answered_day') || '0');
-    if (lastAnsweredDay >= S.day) await showDashboard();
-    else showTodayRiddle();
+    if (lastAnsweredDay >= S.day) { await showDashboard(); return; }
+
+    // Restore progress if mid-day
+    const answeredCount = parseInt(localStorage.getItem('genazo_answered_count_' + S.day) || '0');
+    currentRiddleIndex  = answeredCount;
+    sessionAnswers      = safeParse(localStorage.getItem('genazo_session_answers_' + S.day), {});
+
+    if (currentRiddleIndex >= allRiddles.length) { await showDashboard(); return; }
+
+    showTodayRiddle();
 
   } catch (err) {
     console.error('[loadDailyRiddle]', err);
@@ -369,7 +386,7 @@ async function loadDailyRiddle() {
       <div class="no-riddle-wrap">
         <div class="no-riddle-icon"><i class="ti ti-alert-triangle" style="font-size:52px;color:#3A3858"></i></div>
         <h2>Connection Error</h2>
-        <p>Could not load today's riddle.<br>Try again in a moment.</p>
+        <p>Could not load today's riddles.<br>Try again in a moment.</p>
         <button class="btn btn-primary" onclick="loadHomeScreen()">Retry</button>
       </div>`;
   }
@@ -385,32 +402,40 @@ function renderNoRiddle(body) {
 }
 
 function renderRiddle(container) {
-  const r       = S.riddle;
-  const history = getStreakHistory();
-  const dots    = buildStreakDots(history);
+  const r          = allRiddles[currentRiddleIndex] || S.riddle;
+  if (!r) return;
+  const riddleNum   = currentRiddleIndex + 1;
+  const totalCount  = allRiddles.length || 1;
+
+  const progressDots = Array.from({ length: totalCount }, (_, i) => {
+    const ans     = sessionAnswers[i + 1];
+    const bg      = !ans ? '#1A1828' : ans.correct ? '#34D399' : '#F87171';
+    const size    = i === currentRiddleIndex ? '10px' : '8px';
+    return `<div style="width:${size};height:${size};border-radius:50%;background:${bg};flex-shrink:0;transition:background 0.3s"></div>`;
+  }).join('');
 
   container.innerHTML = `
     <div class="day-header">
       <div class="day-badge">Day ${S.day}</div>
-      <div class="streak-dots">${dots}</div>
-      <div class="answer-count">${S.totalAnswers} answered</div>
+      <div style="display:flex;align-items:center;gap:5px">${progressDots}</div>
+      <div class="answer-count">Riddle ${riddleNum} of ${totalCount}</div>
     </div>
     <div class="riddle-card">
       <div class="riddle-card-top">
         <span class="riddle-category">${(r.category || 'technical').toUpperCase()}</span>
         <span class="riddle-topic-dot ${r.category === 'community' ? 'dot-amber' : 'dot-blue'}"></span>
       </div>
-      <div class="riddle-text">${r.riddle}</div>
+      <div class="riddle-text">${escHtml(r.riddle)}</div>
       <div class="riddle-hint">
         <i class="ti ti-bulb hint-icon"></i>
-        <span>${r.hint}</span>
+        <span>${escHtml(r.hint)}</span>
       </div>
     </div>
     <div class="options-list">
       ${['A','B','C','D'].map(l => `
         <button class="opt-btn" id="opt-${l}" onclick="selectAnswer('${l}')">
           <span class="opt-letter">${l}</span>
-          <span class="opt-text">${r.options[l] || ''}</span>
+          <span class="opt-text">${escHtml(r.options[l] || '')}</span>
           <i class="ti ti-chevron-right opt-chevron"></i>
         </button>`).join('')}
     </div>
@@ -423,30 +448,24 @@ function renderRiddle(container) {
 }
 
 function renderAnswered(container, result) {
-  const r         = S.riddle;
-  const isCorrect = result?.correct;
-  const pts       = result?.points || 0;
-  const streak    = result?.new_streak || 0;
+  const pts     = result?.points || 0;
+  const correct = result?.total_correct !== undefined ? result.total_correct : (result?.correct ? 1 : 0);
+  const total   = result?.total_riddles || allRiddles.length || 5;
 
   container.innerHTML = `
     <div class="day-header"><div class="day-badge">Day ${S.day}</div></div>
-    <div class="answered-card ${isCorrect ? 'correct' : 'wrong'}">
-      <i class="ti ${isCorrect ? 'ti-circle-check' : 'ti-circle-x'} answered-icon-ti"></i>
-      <div class="answered-label">${isCorrect ? 'Correct!' : 'Not quite'}</div>
-      <div class="answered-pts">+${pts} pts${streak > 1 ? ` · ${streak} day streak` : ''}</div>
+    <div class="answered-card ${correct > 0 ? 'correct' : 'wrong'}">
+      <i class="ti ${correct > 0 ? 'ti-circle-check' : 'ti-circle-x'} answered-icon-ti"></i>
+      <div class="answered-label">${correct} / ${total} correct</div>
+      <div class="answered-pts">+${pts} pts</div>
     </div>
-    ${r ? `<div class="explanation-card">
-      <div class="exp-label">Correct Answer</div>
-      <div class="exp-answer">${r.correct}. ${r.options?.[r.correct] || ''}</div>
-      <div class="exp-text">${r.explanation || ''}</div>
-    </div>` : ''}
-    <div class="come-back">Come back tomorrow for a new riddle</div>
+    <div class="come-back">Come back tomorrow for 5 new riddles</div>
     <div style="display:flex;gap:10px;margin-top:16px;padding-bottom:8px">
       <button class="btn btn-primary" style="flex:1" onclick="shareResult()">
         <i class="ti ti-share"></i> Share
       </button>
-      <button class="btn btn-secondary" style="flex:1" onclick="showResultScreen(${JSON.stringify(result).replace(/"/g,'&quot;')})">
-        View Score
+      <button class="btn btn-outline" style="flex:1" onclick="showLeaderboard()">
+        <i class="ti ti-trophy"></i> Leaderboard
       </button>
     </div>`;
 }
@@ -468,53 +487,21 @@ function submitAnswer() {
   if (!S.selectedAnswer || S.isSubmitting) return;
   S.isSubmitting = true;
 
-  const riddle    = S.riddle;
-  const correct   = riddle.correct.toUpperCase();
-  const isCorrect = S.selectedAnswer.toUpperCase() === correct;
+  const riddle       = allRiddles[currentRiddleIndex];
+  const riddleNumber = currentRiddleIndex + 1;
+  const correct      = riddle.correct.toUpperCase();
+  const isCorrect    = S.selectedAnswer.toUpperCase() === correct;
+  const points       = isCorrect ? 100 : 0;
 
-  const cur       = getPlayerStats();
-  const newStreak = isCorrect ? cur.streak + 1 : 0;
-  const newBest   = Math.max(cur.bestStreak, newStreak);
+  sessionAnswers[riddleNumber] = { answer: S.selectedAnswer, correct: isCorrect, points };
+  localStorage.setItem('genazo_answered_count_' + S.day, riddleNumber.toString());
+  localStorage.setItem('genazo_session_answers_' + S.day, JSON.stringify(sessionAnswers));
 
-  let streakBonus = 0;
-  if (isCorrect) {
-    if      (newStreak >= 30) streakBonus = 100;
-    else if (newStreak >= 7)  streakBonus = 50;
-    else if (newStreak >= 3)  streakBonus = 25;
-  }
-  const points = isCorrect ? 100 + streakBonus : 0;
-
-  savePlayerStats({
-    streak:       newStreak,
-    bestStreak:   newBest,
-    totalPoints:  cur.totalPoints  + points,
-    daysAnswered: cur.daysAnswered + 1,
-    daysCorrect:  cur.daysCorrect  + (isCorrect ? 1 : 0),
-  });
-
-  const result = {
-    correct: isCorrect, points,
-    new_streak: newStreak, streak_bonus: streakBonus,
-    correct_answer: correct, explanation: riddle.explanation || '',
-    answer: S.selectedAnswer,
-  };
-
-  localStorage.setItem('genazo_last_answered_day', String(S.day));
-  localStorage.setItem('genazo_last_result', JSON.stringify(result));
-
-  const history = getStreakHistory();
-  history.push({ day: S.day, correct: isCorrect });
-  localStorage.setItem('genazo_streak_history', JSON.stringify(history.slice(-30)));
-
-  updateAllStatDisplays();
-  updateLeaderboardOptimistic(S.username, points);
-
-  // Show result screen; player can navigate home → dashboard via nav
-  showResultScreen(result);
+  showRiddleResult(isCorrect, points, S.selectedAnswer, riddle, riddleNumber);
   S.isSubmitting = false;
 
-  callWrite('submit_daily_answer', [S.sessionId, S.username, S.selectedAnswer])
-    .then(hash => { console.log('[submit] confirmed:', hash); updateRankDisplay(); })
+  callWrite('submit_daily_answer', [S.sessionId, S.username, S.selectedAnswer, riddleNumber])
+    .then(hash => { console.log('[submit] confirmed:', hash); showTxHash(hash); updateRankDisplay(); })
     .catch(err  => console.error('[submit] error:', err.message));
 }
 
@@ -591,6 +578,44 @@ function showResultScreen(result) {
   showOptimisticCommunity(S.username, isCorrect);
 }
 
+function showRiddleResult(isCorrect, points, answer, riddle, riddleNumber) {
+  showScreen('screen-result');
+
+  const isLast = riddleNumber >= allRiddles.length;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const get = (id)    => document.getElementById(id);
+
+  const iconEl = get('result-icon');
+  if (iconEl) iconEl.className = `ti ${isCorrect ? 'ti-circle-check' : 'ti-circle-x'} result-icon-symbol`;
+  const iconWrap = get('result-icon-wrap');
+  if (iconWrap) iconWrap.className = 'result-icon-wrap ' + (isCorrect ? 'correct-mode' : 'wrong-mode');
+
+  const lbl = get('result-label');
+  if (lbl) { lbl.textContent = isCorrect ? 'CORRECT!' : 'WRONG'; lbl.className = 'result-outcome-label ' + (isCorrect ? 'correct' : 'wrong'); }
+
+  animateScore(points);
+
+  const bkdn = get('score-breakdown');
+  if (bkdn) bkdn.textContent = points > 0 ? `+${points} pts` : 'Better luck on the next one';
+
+  set('riddle-progress-text', `Riddle ${riddleNumber} of ${allRiddles.length}`);
+  set('correct-answer-text', riddle.correct + '. ' + (riddle.options?.[riddle.correct] || ''));
+  set('explanation-text', riddle.explanation || '');
+
+  const sb = get('streak-block');
+  if (sb) sb.style.display = 'none';
+  const flameEl = get('streak-icon');
+  if (flameEl) flameEl.classList.remove('streak-fire-icon');
+
+  const nextBtn = get('next-btn');
+  if (nextBtn) {
+    nextBtn.textContent = isLast ? 'See Final Score' : 'Next Riddle →';
+    nextBtn.onclick     = isLast ? showFinalScore : goToNextRiddle;
+  }
+
+  if (isCorrect) { launchConfetti(); launchParticles(); }
+}
+
 function launchConfetti() {
   const container = document.getElementById('confetti-container');
   if (!container) return;
@@ -619,6 +644,90 @@ function launchParticles() {
     container.appendChild(p);
   }
   setTimeout(() => { if (container) container.innerHTML = ''; }, 1500);
+}
+
+function goToNextRiddle() {
+  currentRiddleIndex++;
+  S.riddle = allRiddles[currentRiddleIndex] || null;
+  S.isSubmitting = false;
+  showScreen('screen-home');
+}
+
+function showFinalScore() {
+  const total   = Object.values(sessionAnswers).reduce((sum, a) => sum + a.points, 0);
+  const correct = Object.values(sessionAnswers).filter(a => a.correct).length;
+
+  const cur = getPlayerStats();
+  const newStreak = correct > 0 ? cur.streak + 1 : 0;
+  const newBest   = Math.max(cur.bestStreak, newStreak);
+  let streakBonus = 0;
+  if (correct > 0) {
+    if      (newStreak >= 30) streakBonus = 100;
+    else if (newStreak >= 7)  streakBonus = 50;
+    else if (newStreak >= 3)  streakBonus = 25;
+  }
+  const totalWithBonus = total + streakBonus;
+
+  savePlayerStats({
+    streak:       newStreak,
+    bestStreak:   newBest,
+    totalPoints:  cur.totalPoints + totalWithBonus,
+    daysAnswered: cur.daysAnswered + 1,
+    daysCorrect:  cur.daysCorrect + (correct > 0 ? 1 : 0),
+  });
+
+  const finalResult = {
+    correct: correct > 0, points: totalWithBonus,
+    new_streak: newStreak, streak_bonus: streakBonus,
+    total_correct: correct, total_riddles: allRiddles.length,
+  };
+  localStorage.setItem('genazo_last_answered_day', String(S.day));
+  localStorage.setItem('genazo_last_result', JSON.stringify(finalResult));
+
+  const history = getStreakHistory();
+  history.push({ day: S.day, correct: correct > 0 });
+  localStorage.setItem('genazo_streak_history', JSON.stringify(history.slice(-30)));
+
+  updateLeaderboardOptimistic(S.username, totalWithBonus);
+  updateAllStatDisplays();
+  updateRankDisplay();
+
+  showScreen('screen-final');
+
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('final-score',   totalWithBonus + ' pts');
+  set('final-correct', correct + ' / ' + allRiddles.length + ' correct');
+  set('final-av',      (S.username || '?')[0].toUpperCase());
+  set('final-username', S.username || '');
+  set('streak-final-text', newStreak >= 1
+    ? `${newStreak} day streak${streakBonus > 0 ? ` · +${streakBonus} bonus` : ''}`
+    : 'No streak today');
+
+  updateProgressDots();
+  updateAllAvatars();
+  showOptimisticCommunity(S.username, correct > 0);
+  loadCommunityResults();
+}
+
+function showTxHash(hash) {
+  if (!hash) return;
+  const display = document.getElementById('tx-hash-display');
+  const text    = document.getElementById('tx-hash-text');
+  const link    = document.getElementById('tx-hash-link');
+  if (display && text && link) {
+    text.textContent = hash.slice(0, 8) + '…' + hash.slice(-6);
+    link.href = 'https://studio.genlayer.com/transactions/' + hash;
+    display.style.display = 'flex';
+  }
+}
+
+function updateProgressDots() {
+  for (let i = 1; i <= 5; i++) {
+    const dot = document.getElementById('dot-' + i);
+    if (!dot) continue;
+    const ans = sessionAnswers[i];
+    dot.style.background = !ans ? '#1A1828' : ans.correct ? '#34D399' : '#F87171';
+  }
 }
 
 async function loadCommunityResults() {
@@ -811,13 +920,15 @@ function buildStreakDots(history) {
 
 // ── SHARE ─────────────────────────────────────────────────────────────────
 function shareResult() {
-  const day        = S.day || 1;
-  const result     = safeParse(localStorage.getItem('genazo_last_result'));
-  const isCorrect  = result?.correct ?? false;
-  const earnedPts  = result?.points  ?? 0;
-  const streak     = parseInt(localStorage.getItem('genazo_streak') || '0');
-  const shareText  = 'GENAZO Day ' + day + '\n' +
-    (isCorrect ? 'Correct! +' + earnedPts + ' pts' : 'Wrong answer') + '\n' +
+  const day     = S.day || 1;
+  const total   = Object.values(sessionAnswers).reduce((sum, a) => sum + a.points, 0);
+  const correct = Object.values(sessionAnswers).filter(a => a.correct).length;
+  const count   = allRiddles.length || 5;
+  const streak  = parseInt(localStorage.getItem('genazo_streak') || '0');
+  const result  = safeParse(localStorage.getItem('genazo_last_result'));
+  const pts     = total || result?.points || 0;
+  const shareText = 'GENAZO Day ' + day + '\n' +
+    correct + ' / ' + count + ' correct · +' + pts + ' pts\n' +
     (streak >= 3 ? streak + ' day streak\n' : '') +
     'Play at https://genazo.xyz';
   const twitterUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText);
@@ -882,10 +993,11 @@ Object.assign(window, {
   onNicknameInput, enterGame, selectAnswer, submitAnswer,
   loadDailyRiddle, loadHomeScreen: loadDailyRiddle,
   showLeaderboard, loadLeaderboard, showProfile, shareResult,
-  showResultScreen, showLeaderboardData, showLeaderboardEmpty,
+  showResultScreen, showRiddleResult, showLeaderboardData, showLeaderboardEmpty,
   launchConfetti, launchParticles, loadCommunityResults,
   showOptimisticCommunity, updateLeaderboardOptimistic,
   updateDashboardStats, loadDashboardActivity,
   setHomeView, showDashboard, showTodayRiddle,
   completeOnboarding, setAvatarColor, updateAllAvatars,
+  goToNextRiddle, showFinalScore, showTxHash, updateProgressDots,
 });

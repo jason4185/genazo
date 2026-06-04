@@ -77,13 +77,15 @@
   </div>
 </div>
 
-<!-- ── Result ─────────────────────────────────────────────────────────────── -->
+<!-- ── Result (per-riddle) ─────────────────────────────────────────────────── -->
 <div id="screen-result" class="screen has-nav">
   <div class="grid-bg"></div>
   <div class="screen-body">
     <div class="result-screen">
 
       <div id="confetti-container" class="confetti-container"></div>
+
+      <div id="riddle-progress-text" style="font-size:11px;color:#5A5878;font-family:'Space Mono',monospace;letter-spacing:2px;text-transform:uppercase"></div>
 
       <div id="result-icon-wrap" class="result-icon-wrap correct-mode">
         <i id="result-icon" class="ti ti-circle-check result-icon-symbol"></i>
@@ -107,16 +109,8 @@
         <div id="explanation-text" class="reveal-panel-exp"></div>
       </div>
 
-      <div class="community-panel">
-        <div id="community-title" class="community-panel-title">Community today</div>
-        <div id="community-list" class="community-panel-list"></div>
-      </div>
-
-      <div class="come-back-msg">Come back tomorrow for a new riddle</div>
-
       <div class="result-action-btns">
-        <button class="btn btn-primary" onclick="shareResult()"><i class="ti ti-share"></i> Share Result</button>
-        <button class="btn btn-outline" onclick="showLeaderboard()"><i class="ti ti-trophy"></i> Leaderboard</button>
+        <button id="next-btn" class="btn btn-primary btn-full">Next Riddle →</button>
       </div>
 
     </div>
@@ -243,6 +237,62 @@
     </div>
     <button onclick="completeOnboarding()" style="width:100%;max-width:320px;padding:16px;border-radius:12px;border:none;background:#7C3AED;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:'Space Grotesk',sans-serif;letter-spacing:0.3px;position:relative;z-index:1">I'm ready. Show me the riddle</button>
     <div onclick="completeOnboarding()" style="margin-top:16px;font-size:12px;color:#5A5878;cursor:pointer;position:relative;z-index:1">Skip</div>
+  </div>
+</div>
+
+<!-- ── Final Score ───────────────────────────────────────────────────────── -->
+<div id="screen-final" class="screen has-nav">
+  <div class="grid-bg"></div>
+  <div class="screen-body">
+    <div class="container" style="padding-top:24px">
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
+        <span style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#E8E6F4;letter-spacing:2px">GEN<span style="color:#9D7FEA">AZO</span></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div id="final-av" class="user-avatar" style="width:28px;height:28px;font-size:12px"></div>
+          <span id="final-username" style="font-size:13px;color:#7A7896;font-weight:600"></span>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:10px;color:#34D399;letter-spacing:3px;text-transform:uppercase;font-weight:700;margin-bottom:8px">Day Complete</div>
+        <div id="final-score" style="font-family:'Space Mono',monospace;font-size:52px;font-weight:700;color:#F0EEF8;line-height:1;margin-bottom:4px"></div>
+        <div id="final-correct" style="font-size:14px;color:#5A5878;margin-bottom:20px"></div>
+        <div style="display:flex;justify-content:center;gap:8px;margin-bottom:20px">
+          <div id="dot-1" style="width:12px;height:12px;border-radius:50%;background:#1A1828"></div>
+          <div id="dot-2" style="width:12px;height:12px;border-radius:50%;background:#1A1828"></div>
+          <div id="dot-3" style="width:12px;height:12px;border-radius:50%;background:#1A1828"></div>
+          <div id="dot-4" style="width:12px;height:12px;border-radius:50%;background:#1A1828"></div>
+          <div id="dot-5" style="width:12px;height:12px;border-radius:50%;background:#1A1828"></div>
+        </div>
+        <div id="streak-chip-final" style="display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border-radius:100px;background:#1A0F0A;border:1px solid #2A1A0A">
+          <i class="ti ti-flame" style="font-size:16px;color:#F59E0B" aria-hidden="true"></i>
+          <span id="streak-final-text" style="font-size:13px;color:#F59E0B;font-weight:600"></span>
+        </div>
+      </div>
+
+      <div id="tx-hash-display" style="display:none;width:100%;padding:10px 14px;border-radius:10px;background:#0A0914;border:1px solid #141220;align-items:center;gap:8px;margin-bottom:16px">
+        <i class="ti ti-cube" style="font-size:14px;color:#3A3858" aria-hidden="true"></i>
+        <div style="flex:1">
+          <div style="font-size:9px;color:#3A3858;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:2px">Recorded on-chain</div>
+          <div id="tx-hash-text" style="font-family:'Space Mono',monospace;font-size:11px;color:#4A4862"></div>
+        </div>
+        <a id="tx-hash-link" href="#" target="_blank" style="font-size:10px;color:#7C3AED;text-decoration:none;font-weight:600">View →</a>
+      </div>
+
+      <div style="width:100%;padding:12px 14px;border-radius:12px;background:#0A0914;border:1px solid #141220;margin-bottom:20px">
+        <div style="font-size:9px;color:#4A4862;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:10px">Community today</div>
+        <div id="community-list"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;width:100%;margin-bottom:14px">
+        <button onclick="shareResult()" style="flex:1;padding:13px;border-radius:10px;border:none;background:#7C3AED;color:#fff;font-size:13px;font-weight:700;font-family:'Space Grotesk',sans-serif;cursor:pointer">Share Result</button>
+        <button onclick="showLeaderboard()" style="flex:1;padding:13px;border-radius:10px;border:1px solid #2D2040;background:transparent;color:#7C3AED;font-size:13px;font-weight:700;font-family:'Space Grotesk',sans-serif;cursor:pointer">Leaderboard</button>
+      </div>
+
+      <div style="font-size:12px;color:#4A4862;text-align:center">Come back tomorrow for 5 new riddles</div>
+
+    </div>
   </div>
 </div>
 

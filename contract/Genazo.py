@@ -7,7 +7,7 @@ class Genazo(gl.Contract):
 
     players: str
     fingerprints: str
-    daily_riddle: str
+    daily_riddles: str
     daily_day_number: str
     daily_answers: str
     all_time_leaderboard: str
@@ -16,7 +16,7 @@ class Genazo(gl.Contract):
     def __init__(self):
         self.players = json.dumps({})
         self.fingerprints = json.dumps({})
-        self.daily_riddle = ""
+        self.daily_riddles = json.dumps([])
         self.daily_day_number = json.dumps(0)
         self.daily_answers = json.dumps({})
         self.all_time_leaderboard = json.dumps([])
@@ -51,25 +51,6 @@ class Genazo(gl.Contract):
         day += 1
         self.daily_day_number = json.dumps(day)
 
-        TOPICS = [
-            "Optimistic Democracy",
-            "Validators and how they work",
-            "Equivalence Principle",
-            "GenVM execution environment",
-            "Intelligent Contracts",
-            "Appeal Process",
-            "Non-deterministic operations",
-            "Finality and transaction lifecycle",
-            "GenLayer founding and mission",
-            "Testnet Asimov and Bradbury history",
-            "Builder Program and incentives",
-            "GEN token and staking economics",
-            "Partnerships and ecosystem",
-            "LayerZero integration",
-            "Community and culture",
-        ]
-        topic = TOPICS[(day - 1) % len(TOPICS)]
-
         def fetch() -> str:
             raw = gl.nondet.web.render(
                 docs_url, mode="text"
@@ -92,27 +73,49 @@ class Genazo(gl.Contract):
             if ":" in fp
         ]))
 
-        def generate() -> str:
-            prompt = f"""You are a riddle master for Genazo,
-the daily GenLayer knowledge game.
+        TOPICS = [
+            "Optimistic Democracy",
+            "Validators and how they work",
+            "Equivalence Principle",
+            "GenVM execution environment",
+            "Intelligent Contracts",
+            "Appeal Process",
+            "Non-deterministic operations",
+            "Finality and transaction lifecycle",
+            "GenLayer founding and mission",
+            "Testnet Asimov and Bradbury history",
+            "Builder Program and incentives",
+            "GEN token and staking economics",
+            "Partnerships and ecosystem",
+            "LayerZero integration",
+            "Community and culture",
+        ]
+
+        riddles = []
+
+        for i in range(5):
+            topic_index = (day - 1 + i) % len(TOPICS)
+            topic = TOPICS[topic_index]
+
+            used_fps = list(fingerprints.keys())
+
+            def generate() -> str:
+                prompt = f"""You are a riddle master for Genazo, the daily GenLayer knowledge game.
 
 GenLayer content:
 {docs}
 
 TODAY'S TOPIC: {topic}
-You MUST generate a riddle specifically
-about: {topic}
+You MUST generate a riddle specifically about: {topic}
 Do not deviate to other topics.
 
 BANNED CONCEPTS from recent riddles:
 {json.dumps(recent_concepts)}
 
-Used fingerprints — use completely
-different angle from these:
-{json.dumps(used[:20])}
+Used fingerprints — use completely different angle from these:
+{json.dumps(used_fps[:20])}
 
-Generate ONE riddle for Day {day}
-about {topic}.
+Generate ONE riddle for Day {day} Riddle {i + 1} of 5.
 
 LENGTH RULES:
 - Riddle: 3 to 4 sentences maximum
@@ -125,7 +128,6 @@ DIFFICULTY — make it genuinely tricky:
 - Use metaphors and indirect references
 - All 4 options must sound equally plausible
 - No obviously wrong answers
-- All options from same concept family
 
 STYLE:
 - Short punchy sentences
@@ -152,51 +154,87 @@ Return ONLY valid JSON:
     "explanation": "2 to 3 sentences",
     "fingerprint": "{topic}:unique_angle",
     "day": {day},
+    "riddle_number": {i + 1},
     "topic": "{topic}",
     "category": "community or technical"
 }}"""
-            return gl.nondet.exec_prompt(prompt)
+                return gl.nondet.exec_prompt(prompt)
 
-        result = gl.eq_principle.prompt_comparative(
-            generate,
-            f"Both outputs are equivalent if they are both valid JSON riddles specifically about {topic} in the GenLayer ecosystem, even if the riddle text, hint wording, options, and explanation differ completely between the two outputs"
-        )
+            result = gl.eq_principle.prompt_comparative(
+                generate,
+                f"Both outputs are equivalent if they are both valid JSON riddles specifically about {topic} in the GenLayer ecosystem, even if the riddle text, hint wording, options, and explanation differ completely"
+            )
 
-        try:
-            clean = result.strip()
-            if "```json" in clean:
-                clean = clean.split("```json")[1].split("```")[0].strip()
-            elif "```" in clean:
-                clean = clean.split("```")[1].split("```")[0].strip()
+            try:
+                clean = result.strip()
+                if "```json" in clean:
+                    clean = clean.split("```json")[1].split("```")[0].strip()
+                elif "```" in clean:
+                    clean = clean.split("```")[1].split("```")[0].strip()
 
-            riddle = json.loads(clean)
+                riddle = json.loads(clean)
 
-            fp = riddle.get("fingerprint", "")
-            if fp:
-                fingerprints[fp] = True
-                self.fingerprints = json.dumps(fingerprints)
+                fp = riddle.get("fingerprint", "")
+                if fp:
+                    fingerprints[fp] = True
+                    self.fingerprints = json.dumps(fingerprints)
 
-            self.daily_riddle = json.dumps(riddle)
-            self.daily_answers = json.dumps({})
+                riddles.append(riddle)
 
-            if day % 7 == 0:
-                self.weekly_leaderboard = json.dumps([])
+            except Exception as e:
+                riddles.append({
+                    "error": str(e)[:100],
+                    "riddle_number": i + 1
+                })
 
-            return json.dumps({"success": True, "day": day})
+        self.daily_riddles = json.dumps(riddles)
+        self.daily_answers = json.dumps({})
 
-        except Exception as e:
-            return json.dumps({"error": str(e)[:100]})
+        if day % 7 == 0:
+            self.weekly_leaderboard = json.dumps([])
+
+        return json.dumps({
+            "success": True,
+            "day": day,
+            "riddles_generated": len(riddles)
+        })
 
     @gl.public.write
-    def submit_daily_answer(self, session_id: str, username: str, answer: str):
-        if not self.daily_riddle:
-            return json.dumps({"error": "no_riddle_today"})
+    def submit_daily_answer(self, session_id: str, username: str, answer: str, riddle_number: int):
+        if not self.daily_riddles:
+            return json.dumps({"error": "no_riddles_today"})
 
         current_day = json.loads(self.daily_day_number)
         answers = json.loads(self.daily_answers)
 
-        if session_id in answers:
-            return json.dumps({"error": "already_answered"})
+        player_answers = answers.get(session_id, {})
+        riddle_key = str(riddle_number)
+
+        if riddle_key in player_answers:
+            return json.dumps({"error": "already_answered_this_riddle"})
+
+        riddles = json.loads(self.daily_riddles)
+
+        if riddle_number < 1 or riddle_number > len(riddles):
+            return json.dumps({"error": "invalid_riddle_number"})
+
+        riddle = riddles[riddle_number - 1]
+        correct = riddle.get("correct", "A").upper()
+        is_correct = answer.upper() == correct
+        points = 100 if is_correct else 0
+
+        player_answers[riddle_key] = {
+            "answer": answer.upper(),
+            "correct": is_correct,
+            "points": points,
+        }
+        answers[session_id] = player_answers
+
+        all_answered = len(player_answers) >= len(riddles)
+        any_correct = any(
+            v.get("correct", False)
+            for v in player_answers.values()
+        )
 
         players = json.loads(self.players)
         if session_id not in players:
@@ -211,51 +249,68 @@ Return ONLY valid JSON:
             }
 
         player = players[session_id]
-        last_day = player.get("last_day_answered", 0)
-
-        if last_day == current_day - 1:
-            new_streak = player.get("streak", 0) + 1
-        else:
-            new_streak = 1
-
-        riddle = json.loads(self.daily_riddle)
-        correct = riddle.get("correct", "A").upper()
-        is_correct = answer.upper() == correct
+        player["total_points"] = player.get("total_points", 0) + points
+        player["username"] = username
 
         streak_bonus = 0
-        if is_correct:
-            if new_streak >= 30:
-                streak_bonus = 100
-            elif new_streak >= 7:
-                streak_bonus = 50
-            elif new_streak >= 3:
-                streak_bonus = 25
+        if all_answered:
+            last_day = player.get("last_day_answered", 0)
+            if last_day == current_day - 1:
+                new_streak = player.get("streak", 0) + 1
+            else:
+                new_streak = 1
 
-        points = (100 + streak_bonus) if is_correct else 0
+            if any_correct:
+                if new_streak >= 30:
+                    streak_bonus = 100
+                elif new_streak >= 7:
+                    streak_bonus = 50
+                elif new_streak >= 3:
+                    streak_bonus = 25
 
-        player["total_points"] = player.get("total_points", 0) + points
-        player["streak"] = new_streak if is_correct else 0
-        player["longest_streak"] = max(
-            player.get("longest_streak", 0), new_streak
-        )
-        player["days_answered"] = player.get("days_answered", 0) + 1
-        if is_correct:
-            player["days_correct"] = player.get("days_correct", 0) + 1
-        player["last_day_answered"] = current_day
-        player["username"] = username
+            if any_correct:
+                player["streak"] = new_streak
+                player["days_correct"] = player.get("days_correct", 0) + 1
+            else:
+                player["streak"] = 0
+
+            player["longest_streak"] = max(
+                player.get("longest_streak", 0),
+                player.get("streak", 0)
+            )
+            player["days_answered"] = player.get("days_answered", 0) + 1
+            player["last_day_answered"] = current_day
+
+            if streak_bonus > 0:
+                player["total_points"] = player.get("total_points", 0) + streak_bonus
+
+            self._update_leaderboards(session_id, username, player)
 
         players[session_id] = player
         self.players = json.dumps(players)
-
-        answers[session_id] = {
-            "username": username,
-            "answer": answer.upper(),
-            "correct": is_correct,
-            "points": points,
-            "streak": new_streak if is_correct else 0,
-        }
         self.daily_answers = json.dumps(answers)
 
+        total_correct = sum(
+            1 for v in player_answers.values()
+            if v.get("correct", False)
+        )
+        total_answered = len(player_answers)
+
+        return json.dumps({
+            "success": True,
+            "correct": is_correct,
+            "points": points,
+            "correct_answer": correct,
+            "explanation": riddle.get("explanation", ""),
+            "riddle_number": riddle_number,
+            "total_answered": total_answered,
+            "total_riddles": len(riddles),
+            "all_answered": all_answered,
+            "total_correct": total_correct,
+            "streak_bonus": streak_bonus,
+        })
+
+    def _update_leaderboards(self, session_id: str, username: str, player: dict):
         all_time = json.loads(self.all_time_leaderboard)
         found = False
         for entry in all_time:
@@ -270,18 +325,21 @@ Return ONLY valid JSON:
             all_time.append({
                 "session_id": session_id,
                 "username": username,
-                "total_points": points,
-                "streak": new_streak if is_correct else 0,
-                "days_answered": 1,
+                "total_points": player["total_points"],
+                "streak": player["streak"],
+                "days_answered": player["days_answered"],
             })
-        all_time.sort(key=lambda x: x.get("total_points", 0), reverse=True)
+        all_time.sort(
+            key=lambda x: x.get("total_points", 0),
+            reverse=True
+        )
         self.all_time_leaderboard = json.dumps(all_time[:100])
 
         weekly = json.loads(self.weekly_leaderboard)
         found_w = False
         for entry in weekly:
             if entry.get("session_id") == session_id:
-                entry["points"] = entry.get("points", 0) + points
+                entry["points"] = player["total_points"]
                 entry["username"] = username
                 found_w = True
                 break
@@ -289,31 +347,26 @@ Return ONLY valid JSON:
             weekly.append({
                 "session_id": session_id,
                 "username": username,
-                "points": points,
+                "points": player["total_points"],
             })
-        weekly.sort(key=lambda x: x.get("points", 0), reverse=True)
+        weekly.sort(
+            key=lambda x: x.get("points", 0),
+            reverse=True
+        )
         self.weekly_leaderboard = json.dumps(weekly[:100])
-
-        return json.dumps({
-            "success": True,
-            "correct": is_correct,
-            "points": points,
-            "streak_bonus": streak_bonus,
-            "new_streak": new_streak if is_correct else 0,
-            "correct_answer": correct,
-            "explanation": riddle.get("explanation", ""),
-        })
 
     @gl.public.view
     def get_daily_riddle(self) -> str:
-        if not self.daily_riddle:
+        if not self.daily_riddles:
             return json.dumps({"found": False})
-        riddle = json.loads(self.daily_riddle)
+        riddles = json.loads(self.daily_riddles)
+        if not riddles:
+            return json.dumps({"found": False})
         day = json.loads(self.daily_day_number)
         answers = json.loads(self.daily_answers)
         return json.dumps({
             "found": True,
-            "riddle": riddle,
+            "riddles": riddles,
             "day": day,
             "total_answers": len(answers),
         })
@@ -321,9 +374,20 @@ Return ONLY valid JSON:
     @gl.public.view
     def get_daily_answers(self) -> str:
         answers = json.loads(self.daily_answers)
+        players = json.loads(self.players)
         result = []
-        for sid, data in answers.items():
-            result.append(data)
+        for sid, player_answers in answers.items():
+            if not isinstance(player_answers, dict):
+                continue
+            total_pts = sum(v.get("points", 0) for v in player_answers.values())
+            any_correct = any(v.get("correct", False) for v in player_answers.values())
+            username = players.get(sid, {}).get("username", "Anonymous")
+            result.append({
+                "username": username,
+                "correct": any_correct,
+                "points": total_pts,
+                "answered": len(player_answers),
+            })
         result.sort(key=lambda x: x.get("points", 0), reverse=True)
         return json.dumps(result)
 
