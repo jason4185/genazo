@@ -6,8 +6,7 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 console.log('[cron] Genazo scheduler running');
-console.log('[cron] Scheduled for midnight UTC every day');
-console.log('[cron] Waiting... next run at 1:00 AM Nigeria time');
+console.log('[cron] Scheduled for midnight UTC (1:00 AM WAT · 8:00 PM ET · 1:00 AM CET)');
 
 cron.schedule('0 0 * * *', () => {
   console.log('[cron] Midnight — generating daily riddle');
@@ -21,8 +20,6 @@ cron.schedule('0 0 * * *', () => {
   }
 }, { timezone: 'UTC' });
 
-console.log('[cron] Scheduled for midnight UTC daily');
-console.log('[cron] That is 1:00 AM Nigeria time (WAT)');
 console.log('[cron] Waiting for next run...');
 
 setInterval(() => {

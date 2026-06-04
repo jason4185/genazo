@@ -260,7 +260,7 @@ async function showDashboard() {
     </div>
 
     <div class="next-riddle-block">
-      <div class="next-riddle-label">Next riddle drops at 1:00 AM UTC</div>
+      <div class="next-riddle-label">Next riddle drops at midnight UTC (1:00 AM WAT · 8:00 PM ET · 1:00 AM CET)</div>
       <div id="countdown" class="next-riddle-countdown">${getCountdown()}</div>
     </div>
   `;
@@ -754,7 +754,7 @@ function shareResult() {
   const streak = parseInt(localStorage.getItem('genazo_streak') || '0');
   const text   = 'GENAZO Day ' + day + ' — ' + pts + ' pts total' +
     (streak >= 3 ? ' · ' + streak + ' day streak' : '') +
-    '\nThe daily GenLayer riddle game. Powered by AI consensus.\n\nPlay at: frontend-team-jason.vercel.app';
+    '\nThe daily GenLayer riddle game.\nPlay at: https://genazo.xyz';
   const twitterUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
   if (navigator.share) {
     navigator.share({ title: 'Genazo Day ' + day, text }).catch(() => window.open(twitterUrl, '_blank'));

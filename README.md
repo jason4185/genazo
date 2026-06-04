@@ -18,10 +18,10 @@ Everything happens on-chain.
 
 ## Play
 
-Live at: https://frontend-team-jason.vercel.app
+Live at: https://genazo.xyz
 
-One riddle drops every day at 1:00 AM 
-Nigeria time. You have 24 hours to answer.
+One riddle drops every day at midnight UTC.
+You have 24 hours to answer.
 Build your streak. Earn points. Climb the 
 global leaderboard.
 
@@ -122,7 +122,8 @@ GitHub Secret named FUNDED_PRIVATE_KEY.
 
 The workflow at 
 .github/workflows/daily-riddle.yml 
-runs automatically at midnight UTC.
+runs automatically at midnight UTC
+(1:00 AM WAT · 8:00 PM ET · 1:00 AM CET).
 
 ---
 
