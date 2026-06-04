@@ -106,27 +106,6 @@ redeployment needed.
 
 ---
 
-## Run Locally
-
-```bash
-cd frontend && npm install && npm run dev
-cd scripts && npm install && node daily-riddle.js
-```
-
----
-
-## Automate Daily Generation
-
-Add your funded wallet private key as a 
-GitHub Secret named FUNDED_PRIVATE_KEY.
-
-The workflow at 
-.github/workflows/daily-riddle.yml 
-runs automatically at midnight UTC
-(1:00 AM WAT · 8:00 PM ET · 1:00 AM CET).
-
----
-
 Built for the GenLayer Builder Program.
 
 *Powered by Optimistic Democracy*
