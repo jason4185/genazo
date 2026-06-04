@@ -4,81 +4,149 @@ import { TransactionStatus } from 'genlayer-js/types';
 
 const CONFIG = {
   CONTRACT_ADDRESS: '0xC6c644F4B4df6c8105b461F07DC180fBB1128Dc1',
-  FUNDED_PRIVATE_KEY: '0x2afff82ee65dadde965fe25a996799b042ebfd7fae003bcf6cf2205b8dfc4eaa',
+  FUNDED_PRIVATE_KEY: process.env.FUNDED_PRIVATE_KEY
+    || '0x2afff82ee65dadde965fe25a996799b042ebfd7fae003bcf6cf2205b8dfc4eaa',
+  DOCS_URL: 'https://genazo-knowledge.netlify.app',
   ADMIN_SESSION: 'genazo_admin_daily',
 };
 
-const DOCS_URLS = [
-  'https://genazo-knowledge.netlify.app',
-];
+const RETRY_DELAY = 30 * 60 * 1000; // 30 minutes
+const MAX_RETRIES = 3;
 
-async function generateWithRetry(client, docsUrl, maxRetries = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+// Track results for summary
+const results = {
+  1: null, 2: null, 3: null, 4: null, 5: null
+};
+
+async function sendTransaction(client, riddleNumber) {
+  const hash = await client.writeContract({
+    address: CONFIG.CONTRACT_ADDRESS,
+    functionName: 'generate_daily_riddle',
+    args: [
+      CONFIG.ADMIN_SESSION,
+      CONFIG.DOCS_URL,
+      riddleNumber
+    ],
+    value: 0,
+  });
+
+  console.log(`[riddle ${riddleNumber}] Sent: ${hash}`);
+
+  await client.waitForTransactionReceipt({
+    hash,
+    status: TransactionStatus.FINALIZED,
+    retries: 150,
+    interval: 5000,
+  });
+
+  return hash;
+}
+
+async function retryRiddle(client, riddleNumber, attemptsLeft) {
+  // This runs independently — does not block anything
+  for (let attempt = 1; attempt <= attemptsLeft; attempt++) {
     try {
-      console.log(`[daily] Attempt ${attempt} of ${maxRetries}`);
-
-      const hash = await client.writeContract({
-        address: CONFIG.CONTRACT_ADDRESS,
-        functionName: 'generate_daily_riddle',
-        args: [CONFIG.ADMIN_SESSION, docsUrl],
-        value: 0,
-      });
-
-      console.log('[daily] Sent:', hash);
-
-      await client.waitForTransactionReceipt({
-        hash,
-        status: TransactionStatus.FINALIZED,
-        retries: 100,
-        interval: 5000,
-      });
-
-      await new Promise(r => setTimeout(r, 15000));
-
-      const day = await client.readContract({
-        address: CONFIG.CONTRACT_ADDRESS,
-        functionName: 'get_day_number',
-        args: [],
-      });
-
-      console.log('[daily] Done! Confirmed day:', day);
-      return true;
-
+      console.log(`[riddle ${riddleNumber}] 🔄 Retry attempt ${attempt} of ${attemptsLeft}`);
+      await sendTransaction(client, riddleNumber);
+      console.log(`[riddle ${riddleNumber}] ✅ Retry succeeded`);
+      results[riddleNumber] = true;
+      return;
     } catch(err) {
-      console.error(`[daily] Attempt ${attempt} failed:`, err.message);
+      console.error(`[riddle ${riddleNumber}] ❌ Retry ${attempt} failed:`, err.message);
 
-      if (attempt < maxRetries) {
-        const waitHours = 2;
-        console.log(`[daily] Waiting ${waitHours} hours before retry...`);
-        console.log(`[daily] Next attempt at:`,
-          new Date(Date.now() + waitHours * 60 * 60 * 1000).toLocaleTimeString());
-        await new Promise(r => setTimeout(r, waitHours * 60 * 60 * 1000));
+      if (attempt < attemptsLeft) {
+        const nextRetry = new Date(Date.now() + RETRY_DELAY);
+        console.log(`[riddle ${riddleNumber}] Next retry at ${nextRetry.toLocaleTimeString()}`);
+        await new Promise(r => setTimeout(r, RETRY_DELAY));
       }
     }
   }
 
-  console.error('[daily] All 3 attempts failed.');
-  console.error('[daily] Players will see yesterday riddle.');
-  return false;
+  console.error(`[riddle ${riddleNumber}] ❌ All retries exhausted`);
+  results[riddleNumber] = false;
 }
 
-async function generateDailyRiddle() {
-  console.log('[daily] Generating riddle for today...');
+async function generateSequentially(client) {
+  const retryPromises = [];
+
+  for (let i = 1; i <= 5; i++) {
+    console.log(`\n[daily] ═══ Riddle ${i} of 5 ═══`);
+    console.log(`[riddle ${i}] Starting now...`);
+
+    try {
+      await sendTransaction(client, i);
+      console.log(`[riddle ${i}] ✅ Success — moving to next`);
+      results[i] = true;
+
+    } catch(err) {
+      console.error(`[riddle ${i}] ❌ Failed:`, err.message);
+
+      // Schedule independent retry — does not block next riddle
+      const retryTime = new Date(Date.now() + RETRY_DELAY);
+      console.log(`[riddle ${i}] Scheduled retry at ${retryTime.toLocaleTimeString()}`);
+      console.log(`[riddle ${i}] Moving to next riddle immediately...`);
+
+      // Fire retry independently — does not block
+      const retryPromise = (async () => {
+        await new Promise(r => setTimeout(r, RETRY_DELAY));
+        await retryRiddle(client, i, MAX_RETRIES - 1);
+      })();
+
+      retryPromises.push(retryPromise);
+      results[i] = 'pending';
+    }
+  }
+
+  // All 5 initial attempts done
+  // Now wait for any pending retries to complete
+  if (retryPromises.length > 0) {
+    console.log(`\n[daily] Initial pass complete.`);
+    console.log(`[daily] ${retryPromises.length} riddle(s) have scheduled retries.`);
+    console.log(`[daily] Waiting for retries to complete...`);
+    await Promise.all(retryPromises);
+  }
+}
+
+async function printSummary() {
+  console.log('\n[daily] ═══ Final Summary ═══');
+  let successful = 0;
+  for (let i = 1; i <= 5; i++) {
+    const icon   = results[i] === true ? '✅' : '❌';
+    const status = results[i] === true
+      ? 'Generated'
+      : results[i] === false
+        ? 'Failed all retries'
+        : 'Unknown';
+    console.log(`[daily] Riddle ${i}: ${icon} ${status}`);
+    if (results[i] === true) successful++;
+  }
+  console.log(`\n[daily] ${successful} of 5 riddles ready for players`);
+  return successful;
+}
+
+async function main() {
+  console.log('[daily] ═══════════════════════════════');
+  console.log('[daily] Genazo Daily Riddle Generation');
+  console.log('[daily] ═══════════════════════════════');
+  console.log('[daily] Strategy:');
+  console.log('[daily] - Generate riddles one by one sequentially');
+  console.log('[daily] - If one fails move to next immediately');
+  console.log('[daily] - Failed riddles retry after 30 min independently');
+  console.log('[daily] - Up to 3 total attempts per riddle\n');
+
   const account = createAccount(CONFIG.FUNDED_PRIVATE_KEY);
-  const client = createClient({ chain: studionet, account });
+  const client  = createClient({ chain: studionet, account });
 
-  const currentDay = await client.readContract({
-    address: CONFIG.CONTRACT_ADDRESS,
-    functionName: 'get_day_number',
-    args: [],
-  });
-  const nextDay = (parseInt(currentDay) || 0) + 1;
-  const docsUrl = DOCS_URLS[nextDay % DOCS_URLS.length];
+  await generateSequentially(client);
 
-  console.log('[daily] Day:', nextDay);
-  console.log('[daily] Docs URL:', docsUrl);
+  const successful = await printSummary();
 
-  await generateWithRetry(client, docsUrl, 3);
+  if (successful === 0) {
+    console.error('[daily] No riddles generated today.');
+    process.exit(1);
+  } else {
+    console.log('[daily] Done! Players can play today.');
+  }
 }
 
-generateDailyRiddle().catch(err => console.error('[daily] Fatal:', err.message));
+main();
