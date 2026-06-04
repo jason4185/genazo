@@ -754,7 +754,7 @@ function shareResult() {
   const streak = parseInt(localStorage.getItem('genazo_streak') || '0');
   const text   = 'GENAZO Day ' + day + ' — ' + pts + ' pts total' +
     (streak >= 3 ? ' · ' + streak + ' day streak' : '') +
-    '\nThe daily GenLayer riddle game. Powered by AI consensus.\n\nPlay at: genazo.netlify.app';
+    '\nThe daily GenLayer riddle game. Powered by AI consensus.\n\nPlay at: frontend-team-jason.vercel.app';
   const twitterUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
   if (navigator.share) {
     navigator.share({ title: 'Genazo Day ' + day, text }).catch(() => window.open(twitterUrl, '_blank'));

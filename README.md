@@ -18,7 +18,7 @@ Everything happens on-chain.
 
 ## Play
 
-Coming soon on Netlify.
+Live at: https://frontend-team-jason.vercel.app
 
 One riddle drops every day at 1:00 AM 
 Nigeria time. You have 24 hours to answer.
