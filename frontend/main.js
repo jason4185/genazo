@@ -201,8 +201,8 @@ function startCountdown() {
 
 // ── VIEW NAV ──────────────────────────────────────────────────────────────
 function viewNavHtml(active) {
-  const leftBtn  = `<button onclick="showDashboard()" aria-label="Community view" style="width:32px;height:32px;border-radius:8px;border:1px solid #1A1828;background:#0F0E1A;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s"><i class="ti ti-arrow-left" style="font-size:16px;color:#6B6888" aria-hidden="true"></i></button>`;
-  const rightBtn = `<button onclick="showTodayRiddle()" aria-label="Today's riddle" style="width:32px;height:32px;border-radius:8px;border:1px solid #1A1828;background:#0F0E1A;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s"><i class="ti ti-arrow-right" style="font-size:16px;color:#6B6888" aria-hidden="true"></i></button>`;
+  const leftBtn  = `<button id="nav-left" onclick="showDashboard()" aria-label="Community view" style="width:32px;height:32px;border-radius:8px;border:1px solid #1A1828;background:#0F0E1A;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s"><i class="ti ti-arrow-left" style="font-size:17px;color:#6B6888" aria-hidden="true"></i></button>`;
+  const rightBtn = `<button id="nav-right" onclick="showTodayRiddle()" aria-label="Today's riddle" style="width:32px;height:32px;border-radius:8px;border:1px solid #1A1828;background:#0F0E1A;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s"><i class="ti ti-arrow-right" style="font-size:17px;color:#6B6888" aria-hidden="true"></i></button>`;
   const spacer   = `<div style="width:32px;height:32px;flex-shrink:0"></div>`;
   return `
     <div class="view-nav">
