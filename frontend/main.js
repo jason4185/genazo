@@ -748,15 +748,18 @@ function buildStreakDots(history) {
 
 // ── SHARE ─────────────────────────────────────────────────────────────────
 function shareResult() {
-  const day    = S.day || 1;
-  const pts    = parseInt(localStorage.getItem('genazo_points') || '0');
-  const streak = parseInt(localStorage.getItem('genazo_streak') || '0');
-  const text   = 'GENAZO Day ' + day + ' — ' + pts + ' pts total' +
-    (streak >= 3 ? ' · ' + streak + ' day streak' : '') +
-    '\nThe daily GenLayer riddle game.\nPlay at: https://genazo.xyz';
-  const twitterUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
+  const day        = S.day || 1;
+  const result     = safeParse(localStorage.getItem('genazo_last_result'));
+  const isCorrect  = result?.correct ?? false;
+  const earnedPts  = result?.points  ?? 0;
+  const streak     = parseInt(localStorage.getItem('genazo_streak') || '0');
+  const shareText  = 'GENAZO Day ' + day + '\n' +
+    (isCorrect ? 'Correct! +' + earnedPts + ' pts' : 'Wrong answer') + '\n' +
+    (streak >= 3 ? streak + ' day streak\n' : '') +
+    'Play at https://genazo.xyz';
+  const twitterUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText);
   if (navigator.share) {
-    navigator.share({ title: 'Genazo Day ' + day, text }).catch(() => window.open(twitterUrl, '_blank'));
+    navigator.share({ title: 'Genazo Day ' + day, text: shareText }).catch(() => window.open(twitterUrl, '_blank'));
   } else {
     window.open(twitterUrl, '_blank');
   }

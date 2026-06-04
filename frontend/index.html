@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
 <title>Genazo — The Daily GenLayer Riddle</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>Ψ</text></svg>">
+<link rel="icon" type="image/jpeg" href="/logo.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
@@ -21,7 +21,9 @@
   <div class="landing-inner">
     <div class="landing-glow"></div>
     <div class="landing-logo-section">
-      <div class="logo-icon">Ψ</div>
+      <div style="width:80px;height:80px;border-radius:20px;overflow:hidden;border:1px solid #2D2040;margin-bottom:20px">
+        <img src="/logo.jpg" alt="Genazo" style="width:100%;height:100%;object-fit:cover"/>
+      </div>
       <div class="logo-wordmark"><span class="logo-gen">GEN</span><span class="logo-azo">AZO</span></div>
       <div class="logo-powered">powered by genlayer</div>
     </div>
@@ -47,7 +49,10 @@
 <div id="screen-home" class="screen has-nav">
   <div class="grid-bg"></div>
   <header class="app-header">
-    <div class="app-logo"><span class="logo-gen">GEN</span><span class="logo-azo">AZO</span></div>
+    <div class="header-logo" style="display:flex;align-items:center;gap:10px">
+      <img src="/logo.jpg" alt="Genazo" style="height:32px;width:32px;border-radius:8px;object-fit:cover"/>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#E8E6F4;letter-spacing:2px">GEN<span style="color:#9D7FEA">AZO</span></span>
+    </div>
     <div class="header-user">
       <div class="user-chip">
         <div class="user-avatar">?</div>
