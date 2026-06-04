@@ -278,7 +278,13 @@ async function showDashboard() {
     </div>
 
     <div class="info-card">
-      <span class="info-card-tag tag-blue">Live</span>
+      <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;background:#021A0E;border:1px solid #0A3320">
+        <span style="position:relative;width:7px;height:7px;flex-shrink:0">
+          <span style="position:absolute;inset:0;border-radius:50%;background:#34D399;animation:live-ring 1.8s ease-out infinite"></span>
+          <span style="position:absolute;inset:1px;border-radius:50%;background:#34D399"></span>
+        </span>
+        <span style="font-size:10px;font-weight:700;color:#34D399;letter-spacing:2px;font-family:'Space Mono',monospace">LIVE</span>
+      </div>
       <div class="info-card-title">Today's activity</div>
       <div id="activity-text" class="info-card-body">Loading…</div>
     </div>
