@@ -359,9 +359,11 @@ async function loadDailyRiddle() {
     const raw    = await viewCall('get_daily_riddle', []);
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
+    console.log('[loadDailyRiddle] parsed:', JSON.stringify(parsed).slice(0, 200));
+
     if (!parsed?.found) { renderNoRiddle(body); return; }
 
-    if (parsed.riddles && Array.isArray(parsed.riddles)) {
+    if (parsed.riddles && Array.isArray(parsed.riddles) && parsed.riddles.length > 0) {
       allRiddles = parsed.riddles;
     } else if (parsed.riddle) {
       allRiddles = [parsed.riddle];
@@ -371,6 +373,9 @@ async function loadDailyRiddle() {
     S.day          = parsed.day;
     S.totalAnswers = parsed.total_answers || 0;
     S.riddle       = allRiddles[0] || null;
+
+    console.log('[loadDailyRiddle] day:', S.day, '| riddles:', allRiddles.length);
+
     updateAllStatDisplays();
     updateRankDisplay();
 
@@ -382,12 +387,14 @@ async function loadDailyRiddle() {
     currentRiddleIndex  = answeredCount;
     sessionAnswers      = safeParse(localStorage.getItem('genazo_session_answers_' + S.day), {});
 
+    console.log('[loadDailyRiddle] resuming at index:', currentRiddleIndex);
+
     if (currentRiddleIndex >= allRiddles.length) { await showDashboard(); return; }
 
     showTodayRiddle();
 
   } catch (err) {
-    console.error('[loadDailyRiddle]', err);
+    console.error('[loadDailyRiddle] error:', err);
     body.innerHTML = `
       <div class="no-riddle-wrap">
         <div class="no-riddle-icon"><i class="ti ti-alert-triangle" style="font-size:52px;color:#3A3858"></i></div>
