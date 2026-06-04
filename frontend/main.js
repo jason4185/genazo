@@ -519,16 +519,19 @@ function submitAnswer() {
 }
 
 // ── RESULT SCREEN ─────────────────────────────────────────────────────────
-function animateScore(target, prefix) {
+function animateScore(finalScore) {
   const el = document.getElementById('score-display');
   if (!el) return;
-  if (target === 0) { el.textContent = '0'; return; }
-  let step = 0; const steps = 20;
+  if (finalScore === 0) { el.textContent = '0'; return; }
+  const prefix = finalScore > 0 ? '+' : '';
+  const steps = 60; const interval = 1200 / steps;
+  let step = 0;
   const timer = setInterval(() => {
     step++;
-    el.textContent = prefix + Math.round(target * (step / steps));
+    const eased = 1 - Math.pow(1 - step / steps, 3);
+    el.textContent = prefix + Math.round(finalScore * eased);
     if (step >= steps) clearInterval(timer);
-  }, 40);
+  }, interval);
 }
 
 function showResultScreen(result) {
@@ -553,7 +556,7 @@ function showResultScreen(result) {
   const lbl = get('result-label');
   if (lbl) { lbl.textContent = isCorrect ? 'CORRECT!' : 'WRONG'; lbl.className = 'result-outcome-label ' + (isCorrect ? 'correct' : 'wrong'); }
 
-  animateScore(pts, pts > 0 ? '+' : '');
+  animateScore(pts);
 
   const bkdn = get('score-breakdown');
   if (bkdn) bkdn.textContent = streakBonus > 0
@@ -581,7 +584,10 @@ function showResultScreen(result) {
     set('explanation-text', r.explanation || '');
   }
 
-  if (isCorrect) launchConfetti();
+  const flameEl = document.getElementById('streak-icon');
+  if (flameEl) flameEl.classList.toggle('streak-fire-icon', isCorrect && streak >= 3);
+
+  if (isCorrect) { launchConfetti(); launchParticles(); }
   showOptimisticCommunity(S.username, isCorrect);
 }
 
@@ -596,6 +602,23 @@ function launchConfetti() {
     container.appendChild(p);
   }
   setTimeout(() => { if (container) container.innerHTML = ''; }, 4000);
+}
+
+function launchParticles() {
+  const container = document.getElementById('particle-container');
+  if (!container) return;
+  container.innerHTML = '';
+  const colors = ['#7C3AED','#34D399','#3B82F6','#F59E0B','#a78bfa'];
+  for (let i = 0; i < 28; i++) {
+    const p = document.createElement('div');
+    const size  = Math.random() * 6 + 4;
+    const angle = Math.random() * 360;
+    const dist  = 50 + Math.random() * 80;
+    const delay = Math.random() * 0.2;
+    p.style.cssText = `position:absolute;width:${size}px;height:${size}px;background:${colors[Math.floor(Math.random()*colors.length)]};left:50%;top:38%;border-radius:${Math.random()>.5?'50%':'3px'};animation:particle-fly ${0.5+Math.random()*0.5}s ease-out ${delay}s forwards;--angle:${angle}deg;--dist:${dist}px;opacity:0.9;`;
+    container.appendChild(p);
+  }
+  setTimeout(() => { if (container) container.innerHTML = ''; }, 1500);
 }
 
 async function loadCommunityResults() {
@@ -806,6 +829,22 @@ function shareResult() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────
+// ── AVATAR ────────────────────────────────────────────────────────────────
+function setAvatarColor(color) {
+  localStorage.setItem('genazo_avatar_color', color);
+  updateAllAvatars();
+}
+
+function updateAllAvatars() {
+  const color = localStorage.getItem('genazo_avatar_color') || '#7C3AED';
+  document.querySelectorAll('.user-avatar, .profile-av').forEach(el => {
+    el.style.background = color;
+  });
+  document.querySelectorAll('.av-color-dot').forEach(dot => {
+    dot.classList.toggle('active', dot.dataset.color === color);
+  });
+}
+
 async function init() {
   const storedContract = localStorage.getItem('genazo_contract');
   if (storedContract !== CONFIG.CONTRACT_ADDRESS) {
@@ -833,6 +872,7 @@ async function init() {
       showScreen('screen-home');
     }
   }
+  updateAllAvatars();
 }
 
 init();
@@ -843,9 +883,9 @@ Object.assign(window, {
   loadDailyRiddle, loadHomeScreen: loadDailyRiddle,
   showLeaderboard, loadLeaderboard, showProfile, shareResult,
   showResultScreen, showLeaderboardData, showLeaderboardEmpty,
-  launchConfetti, loadCommunityResults,
+  launchConfetti, launchParticles, loadCommunityResults,
   showOptimisticCommunity, updateLeaderboardOptimistic,
   updateDashboardStats, loadDashboardActivity,
   setHomeView, showDashboard, showTodayRiddle,
-  completeOnboarding,
+  completeOnboarding, setAvatarColor, updateAllAvatars,
 });

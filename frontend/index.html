@@ -14,6 +14,7 @@
 <body>
 
 <div id="toast"></div>
+<div id="particle-container" style="position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:999;overflow:hidden"></div>
 
 <!-- ── Landing ───────────────────────────────────────────────────────────── -->
 <div id="screen-landing" class="screen active">
@@ -96,7 +97,7 @@
       </div>
 
       <div id="streak-block" class="streak-block">
-        <i class="ti ti-flame streak-icon"></i>
+        <i id="streak-icon" class="ti ti-flame streak-icon"></i>
         <span id="streak-text" class="streak-text">1 Day Streak</span>
       </div>
 
@@ -150,6 +151,18 @@
         <div id="profile-av" class="profile-av">?</div>
         <div id="profile-name" class="profile-name">—</div>
         <div class="profile-title">Oracle in Training</div>
+      </div>
+      <div class="av-color-picker">
+        <div class="av-color-label">Avatar Color</div>
+        <div class="av-color-dots">
+          <div class="av-color-dot" data-color="#7C3AED" style="background:#7C3AED" onclick="setAvatarColor('#7C3AED')"></div>
+          <div class="av-color-dot" data-color="#34D399" style="background:#34D399" onclick="setAvatarColor('#34D399')"></div>
+          <div class="av-color-dot" data-color="#F59E0B" style="background:#F59E0B" onclick="setAvatarColor('#F59E0B')"></div>
+          <div class="av-color-dot" data-color="#F87171" style="background:#F87171" onclick="setAvatarColor('#F87171')"></div>
+          <div class="av-color-dot" data-color="#3B82F6" style="background:#3B82F6" onclick="setAvatarColor('#3B82F6')"></div>
+          <div class="av-color-dot" data-color="#EC4899" style="background:#EC4899" onclick="setAvatarColor('#EC4899')"></div>
+          <div class="av-color-dot" data-color="#14B8A6" style="background:#14B8A6" onclick="setAvatarColor('#14B8A6')"></div>
+        </div>
       </div>
       <div class="xp-section">
         <div class="xp-header">
