@@ -47,16 +47,19 @@ class Genazo(gl.Contract):
 
     @gl.public.write
     def generate_daily_riddle(self, session_id: str, docs_url: str, riddle_number: int):
-        riddles = json.loads(self.daily_riddles)
-        day = json.loads(self.daily_day_number)
+        current_day = json.loads(self.daily_day_number)
 
-        # Increment day only on the first riddle of a fresh day (not on retries)
-        if riddle_number == 1 and not riddles:
-            day += 1
+        if riddle_number == 1:
+            day = current_day + 1
             self.daily_day_number = json.dumps(day)
             self.daily_answers = json.dumps({})
+            self.daily_riddles = json.dumps([])
             if day % 7 == 0:
                 self.weekly_leaderboard = json.dumps([])
+        else:
+            day = current_day
+
+        riddles = json.loads(self.daily_riddles)
 
         def fetch() -> str:
             raw = gl.nondet.web.render(
