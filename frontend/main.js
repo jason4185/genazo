@@ -576,7 +576,7 @@ async function loadCommunityResults() {
     list.innerHTML = data.slice(0, 5).map(p => `
       <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
         <div style="width:24px;height:24px;border-radius:6px;background:#1F1640;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:#9D7FEA;flex-shrink:0">${(p.username||'?')[0].toUpperCase()}</div>
-        <div style="flex:1;font-size:12px;color:var(--text-2)">${escHtml(p.username||'Anonymous')}</div>
+        <div style="flex:1;font-size:13px;color:#6B6888">${escHtml(p.username||'Anonymous')}</div>
         <div style="font-size:11px;font-weight:600;color:${p.correct?'#34D399':'#F87171'}">${p.correct?'Correct':'Wrong'}</div>
       </div>`).join('');
   } catch(err) { console.error('[community]', err); }
@@ -593,7 +593,7 @@ function showOptimisticCommunity(username, isCorrect) {
   list.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
       <div style="width:22px;height:22px;border-radius:6px;background:#1F1640;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#9D7FEA">${initial}</div>
-      <div style="flex:1;font-size:12px;color:var(--text-2)">${escHtml(username || 'You')}</div>
+      <div style="flex:1;font-size:13px;color:#6B6888">${escHtml(username || 'You')}</div>
       <div style="font-size:11px;font-weight:700;color:${resultColor}">${resultText}</div>
     </div>`;
   setTimeout(() => loadCommunityResults(), 30000);
