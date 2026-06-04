@@ -78,6 +78,29 @@ function updateAllStatDisplays() {
   tog('ach-legend',  st.totalPoints  >= 1000);
 }
 
+// ── RANK ──────────────────────────────────────────────────────────────────
+async function calculatePlayerRank() {
+  try {
+    const result = await viewCall('get_all_time_leaderboard', []);
+    let data = typeof result === 'string' ? JSON.parse(result) : result;
+    if (!Array.isArray(data)) return '—';
+    const index = data.findIndex(p =>
+      p.session_id === S.sessionId || p.username === S.username
+    );
+    if (index === -1) return '—';
+    return '#' + (index + 1);
+  } catch(err) {
+    console.error('[rank]', err);
+    return '—';
+  }
+}
+
+async function updateRankDisplay() {
+  const rank = await calculatePlayerRank();
+  const el = document.getElementById('stat-rank');
+  if (el) el.textContent = rank;
+}
+
 // ── HELPERS ───────────────────────────────────────────────────────────────
 async function viewCall(fn, args = []) {
   try { return await client.readContract({ address: CONFIG.CONTRACT_ADDRESS, functionName: fn, args }); }
@@ -137,6 +160,15 @@ function enterGame() {
   localStorage.setItem('genazo_nick', username);
   document.getElementById('home-nick').textContent = username;
   registerPlayerBackground();
+  if (!localStorage.getItem('genazo_onboarded')) {
+    showScreen('screen-onboarding');
+  } else {
+    showScreen('screen-home');
+  }
+}
+
+function completeOnboarding() {
+  localStorage.setItem('genazo_onboarded', '1');
   showScreen('screen-home');
 }
 
@@ -297,6 +329,7 @@ function setHomeView(view) {
 async function loadDailyRiddle() {
   document.getElementById('home-nick').textContent = S.username || localStorage.getItem('genazo_nick') || '';
   updateAllStatDisplays();
+  updateRankDisplay();
 
   // Skip re-fetch if riddle already loaded
   if (S.riddle && S.day) {
@@ -318,6 +351,7 @@ async function loadDailyRiddle() {
     S.day          = parsed.day;
     S.totalAnswers = parsed.total_answers || 0;
     updateAllStatDisplays();
+    updateRankDisplay();
 
     const lastAnsweredDay = parseInt(localStorage.getItem('genazo_last_answered_day') || '0');
     if (lastAnsweredDay >= S.day) await showDashboard();
@@ -474,7 +508,7 @@ function submitAnswer() {
   S.isSubmitting = false;
 
   callWrite('submit_daily_answer', [S.sessionId, S.username, S.selectedAnswer])
-    .then(hash => console.log('[submit] confirmed:', hash))
+    .then(hash => { console.log('[submit] confirmed:', hash); updateRankDisplay(); })
     .catch(err  => console.error('[submit] error:', err.message));
 }
 
@@ -807,4 +841,5 @@ Object.assign(window, {
   showOptimisticCommunity, updateLeaderboardOptimistic,
   updateDashboardStats, loadDashboardActivity,
   setHomeView, showDashboard, showTodayRiddle,
+  completeOnboarding,
 });
