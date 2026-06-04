@@ -169,18 +169,17 @@ function startCountdown() {
 
 // ── VIEW NAV ──────────────────────────────────────────────────────────────
 function viewNavHtml(active) {
+  const leftBtn  = `<button onclick="showDashboard()" style="width:32px;height:32px;border-radius:8px;border:1px solid #1A1828;background:#0F0E1A;display:flex;align-items:center;justify-content:center;cursor:pointer"><i class="ti ti-arrow-left" style="font-size:16px;color:#6B6888" aria-label="Go to community"></i></button>`;
+  const rightBtn = `<button onclick="showTodayRiddle()" style="width:32px;height:32px;border-radius:8px;border:1px solid #1A1828;background:#0F0E1A;display:flex;align-items:center;justify-content:center;cursor:pointer"><i class="ti ti-arrow-right" style="font-size:16px;color:#6B6888" aria-label="Go to today's riddle"></i></button>`;
+  const spacer   = `<div style="width:32px;height:32px;flex-shrink:0"></div>`;
   return `
     <div class="view-nav">
-      <button class="view-arrow" onclick="setHomeView(0)" ${active === 0 ? 'disabled' : ''}>
-        <i class="ti ti-chevron-left"></i>
-      </button>
+      ${active === 1 ? leftBtn : spacer}
       <div class="view-nav-tabs">
-        <span class="view-nav-tab ${active === 0 ? 'active' : ''}" onclick="setHomeView(0)">Community</span>
-        <span class="view-nav-tab ${active === 1 ? 'active' : ''}" onclick="setHomeView(1)">Today's Riddle</span>
+        <span class="view-nav-tab ${active === 0 ? 'active' : ''}" onclick="showDashboard()">Community</span>
+        <span class="view-nav-tab ${active === 1 ? 'active' : ''}" onclick="showTodayRiddle()">Today's Riddle</span>
       </div>
-      <button class="view-arrow" onclick="setHomeView(1)" ${active === 1 ? 'disabled' : ''}>
-        <i class="ti ti-chevron-right"></i>
-      </button>
+      ${active === 0 ? rightBtn : spacer}
     </div>`;
 }
 
