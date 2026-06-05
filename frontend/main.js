@@ -551,8 +551,8 @@ async function loadDailyRiddle() {
 
     if (currentRiddleIndex >= allRiddles.length) {
       const totalAnswered = Object.keys(sessionAnswers).length;
-      if (totalAnswered >= 5) {
-        showFinalScore();
+      if (totalAnswered >= allRiddles.length && allRiddles.length > 0) {
+        concludeDay();
       } else {
         showWaitingForRiddles();
       }
@@ -791,7 +791,7 @@ function showRiddleResult(isCorrect, points, answer, riddle, riddleNumber) {
 
   const answeredCount  = Object.keys(sessionAnswers).length;
   const availableCount = allRiddles.length;
-  const totalExpected  = 5;
+  const totalExpected  = allRiddles.length;
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   const get = (id)    => document.getElementById(id);
 
@@ -871,6 +871,23 @@ function goToNextRiddle() {
   showScreen('screen-home');
 }
 
+function concludeDay() {
+  const answered  = Object.keys(sessionAnswers).length;
+  const available = allRiddles.length;
+
+  if (answered >= available && available > 0) {
+    showFinalScore();
+  } else if (available > answered) {
+    currentRiddleIndex = answered;
+    S.riddle = allRiddles[currentRiddleIndex];
+    S.isSubmitting = false;
+    showTodayRiddle();
+    showScreen('screen-home');
+  } else {
+    showScreen('screen-home');
+  }
+}
+
 function showWaitingForRiddles() {
   isWaitingForRiddles = true;
   const answered  = Object.keys(sessionAnswers).length;
@@ -891,35 +908,60 @@ function showWaitingForRiddles() {
   }
 
   showScreen('screen-waiting');
+  setStorage('genazo_waiting_since', Date.now().toString());
 
   const interval = setInterval(async () => {
     try {
-      const result     = await viewCall('get_daily_riddle', []);
-      const parsed     = typeof result === 'string' ? JSON.parse(result) : result;
-      const newRiddles = parsed?.riddles || [];
-      const answeredNow = Object.keys(sessionAnswers).length;
+      const statusResult = await viewCall('get_generation_status', []);
+      const isDone = typeof statusResult === 'string' ? JSON.parse(statusResult) : statusResult;
 
-      if (newRiddles.length > answeredNow) {
-        clearInterval(interval);
+      const riddleResult = await viewCall('get_daily_riddle', []);
+      const parsed       = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
+      const newRiddles   = parsed?.riddles || [];
+      const answeredNow  = Object.keys(sessionAnswers).length;
+
+      if (newRiddles.length > allRiddles.length) {
         allRiddles = newRiddles;
-        currentRiddleIndex = answeredNow;
-        S.riddle = allRiddles[currentRiddleIndex];
-        S.isSubmitting = false;
-        showTodayRiddle();
-        showScreen('screen-home');
+        if (newRiddles.length > answeredNow) {
+          clearInterval(interval);
+          clearTimeout(giveUpTimer);
+          isWaitingForRiddles = false;
+          currentRiddleIndex = answeredNow;
+          S.riddle = allRiddles[currentRiddleIndex];
+          S.isSubmitting = false;
+          showTodayRiddle();
+          showScreen('screen-home');
+          return;
+        }
+      }
+
+      if (isDone === true) {
+        clearInterval(interval);
+        clearTimeout(giveUpTimer);
+        isWaitingForRiddles = false;
+        concludeDay();
       }
     } catch(e) {
       console.error('[poll]', e);
     }
-  }, 30000);
+  }, 60000);
 
-  setTimeout(() => clearInterval(interval), 2 * 60 * 60 * 1000);
+  const giveUpTimer = setTimeout(async () => {
+    clearInterval(interval);
+    isWaitingForRiddles = false;
+    try {
+      await callWrite('mark_generation_complete', [S.sessionId]);
+    } catch(e) {
+      console.error('[giveup]', e);
+    }
+    concludeDay();
+  }, 3 * 60 * 60 * 1000);
 }
 
 function showFinalScore() {
   const answered = Object.keys(sessionAnswers).length;
   const correct  = Object.values(sessionAnswers).filter(a => a.correct).length;
-  const total    = 5;
+  const total    = allRiddles.length;
   const points   = Object.values(sessionAnswers).reduce((sum, a) => sum + (a.points || 0), 0);
 
   const cur = getPlayerStats();
@@ -944,7 +986,7 @@ function showFinalScore() {
   const finalResult = {
     correct: correct > 0, points: totalWithBonus,
     new_streak: newStreak, streak_bonus: streakBonus,
-    total_correct: correct, total_riddles: 5,
+    total_correct: correct, total_riddles: total,
   };
   setStorage('genazo_last_answered_day', String(S.day));
   setStorage('genazo_last_result', JSON.stringify(finalResult));
@@ -961,7 +1003,17 @@ function showFinalScore() {
 
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('final-score',   totalWithBonus + ' pts');
-  set('final-correct', correct + ' / ' + answered + ' correct');
+  set('final-correct', correct + ' / ' + total + ' correct');
+
+  const riddleCountEl = document.getElementById('final-riddle-count');
+  if (riddleCountEl) {
+    if (total < 5) {
+      riddleCountEl.textContent = `Only ${total} riddle${total !== 1 ? 's' : ''} were generated today by AI validators. Full 5 tomorrow.`;
+      riddleCountEl.style.display = 'block';
+    } else {
+      riddleCountEl.style.display = 'none';
+    }
+  }
   set('final-av',      (S.username || '?')[0].toUpperCase());
   set('final-username', S.username || '');
   set('streak-final-text', newStreak >= 1
@@ -973,7 +1025,7 @@ function showFinalScore() {
   showOptimisticCommunity(S.username, correct > 0);
   loadCommunityResults();
 
-  if (allRiddles.length < 5) checkForNewRiddles();
+  if (allRiddles.length < 5) checkForNewRiddles(); // poll until 5 are generated
 }
 
 function checkForNewRiddles() {
@@ -1012,7 +1064,8 @@ function showTxHash(hash) {
 }
 
 function updateProgressDots() {
-  for (let i = 1; i <= 5; i++) {
+  const total = allRiddles.length || 5;
+  for (let i = 1; i <= total; i++) {
     const dot = document.getElementById('dot-' + i);
     if (!dot) continue;
     const ans = sessionAnswers[i];
@@ -1377,7 +1430,7 @@ Object.assign(window, {
   updateDashboardStats, loadDashboardActivity,
   setHomeView, showDashboard, showTodayRiddle,
   setAvatarColor, updateAllAvatars,
-  goToNextRiddle, showFinalScore, showWaitingForRiddles, showTxHash, updateProgressDots,
+  goToNextRiddle, showFinalScore, showWaitingForRiddles, concludeDay, showTxHash, updateProgressDots,
   checkForNewRiddles, showScreen,
 });
 

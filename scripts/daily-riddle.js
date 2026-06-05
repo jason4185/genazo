@@ -10,7 +10,7 @@ const CONFIG = {
   ADMIN_SESSION: 'genazo_admin_daily',
 };
 
-const RETRY_DELAY = 30 * 60 * 1000; // 30 minutes
+const RETRY_DELAY = 10 * 60 * 1000; // 10 minutes
 const MAX_RETRIES = 3;
 
 // Track results for summary
@@ -42,9 +42,28 @@ async function sendTransaction(client, riddleNumber) {
   return hash;
 }
 
+async function isGenerationConcluded(client) {
+  try {
+    const result = await client.readContract({
+      address: CONFIG.CONTRACT_ADDRESS,
+      functionName: 'get_generation_status',
+      args: [],
+    });
+    const status = typeof result === 'string' ? JSON.parse(result) : result;
+    return status === true;
+  } catch(err) {
+    console.error('[check] Could not read status:', err.message);
+    return false;
+  }
+}
+
 async function retryRiddle(client, riddleNumber, attemptsLeft) {
-  // This runs independently — does not block anything
   for (let attempt = 1; attempt <= attemptsLeft; attempt++) {
+    if (await isGenerationConcluded(client)) {
+      console.log(`[riddle ${riddleNumber}] Generation concluded by frontend. Stopping.`);
+      return;
+    }
+
     try {
       console.log(`[riddle ${riddleNumber}] 🔄 Retry attempt ${attempt} of ${attemptsLeft}`);
       await sendTransaction(client, riddleNumber);
@@ -70,6 +89,11 @@ async function generateSequentially(client) {
   const retryPromises = [];
 
   for (let i = 1; i <= 5; i++) {
+    if (await isGenerationConcluded(client)) {
+      console.log(`[daily] Generation concluded by frontend. Stopping at riddle ${i}.`);
+      break;
+    }
+
     console.log(`\n[daily] ═══ Riddle ${i} of 5 ═══`);
     console.log(`[riddle ${i}] Starting now...`);
 
@@ -81,12 +105,10 @@ async function generateSequentially(client) {
     } catch(err) {
       console.error(`[riddle ${i}] ❌ Failed:`, err.message);
 
-      // Schedule independent retry — does not block next riddle
       const retryTime = new Date(Date.now() + RETRY_DELAY);
       console.log(`[riddle ${i}] Scheduled retry at ${retryTime.toLocaleTimeString()}`);
       console.log(`[riddle ${i}] Moving to next riddle immediately...`);
 
-      // Fire retry independently — does not block
       const retryPromise = (async () => {
         await new Promise(r => setTimeout(r, RETRY_DELAY));
         await retryRiddle(client, i, MAX_RETRIES - 1);
@@ -97,8 +119,6 @@ async function generateSequentially(client) {
     }
   }
 
-  // All 5 initial attempts done
-  // Now wait for any pending retries to complete
   if (retryPromises.length > 0) {
     console.log(`\n[daily] Initial pass complete.`);
     console.log(`[daily] ${retryPromises.length} riddle(s) have scheduled retries.`);
@@ -124,29 +144,58 @@ async function printSummary() {
   return successful;
 }
 
+async function markComplete(client) {
+  try {
+    const hash = await client.writeContract({
+      address: CONFIG.CONTRACT_ADDRESS,
+      functionName: 'mark_generation_complete',
+      args: [CONFIG.ADMIN_SESSION],
+      value: 0,
+    });
+    await client.waitForTransactionReceipt({
+      hash,
+      status: TransactionStatus.FINALIZED,
+      retries: 60,
+      interval: 5000,
+    });
+    console.log('[daily] Generation marked complete');
+  } catch(err) {
+    console.error('[daily] Could not mark complete:', err.message);
+  }
+}
+
 async function alreadyGeneratedToday(client) {
   try {
+    const status = await client.readContract({
+      address: CONFIG.CONTRACT_ADDRESS,
+      functionName: 'get_generation_status',
+      args: [],
+    });
+    const isDone = typeof status === 'string' ? JSON.parse(status) : status;
+
+    if (isDone === true) {
+      console.log('[daily] Generation already complete today. Skipping.');
+      return true;
+    }
+
     const result = await client.readContract({
       address: CONFIG.CONTRACT_ADDRESS,
       functionName: 'get_daily_riddle',
       args: [],
     });
-
     const parsed = typeof result === 'string' ? JSON.parse(result) : result;
-
-    if (!parsed?.found) return false;
-
-    const riddles = parsed.riddles || [];
-    const day = parsed.day || 0;
+    const riddles = parsed?.riddles || [];
 
     if (riddles.length >= 5) {
-      console.log(`[daily] Day ${day} already has ${riddles.length} riddles. Skipping.`);
+      console.log(`[daily] Already has ${riddles.length} riddles. Skipping.`);
       return true;
     }
 
+    console.log(`[daily] ${riddles.length} riddles exist. Generating missing ones.`);
     return false;
+
   } catch(err) {
-    console.error('[daily] Could not check existing riddles:', err.message);
+    console.error('[daily] Check failed:', err.message);
     return false;
   }
 }
@@ -171,12 +220,14 @@ async function main() {
   console.log('[daily] Strategy:');
   console.log('[daily] - Generate riddles one by one sequentially');
   console.log('[daily] - If one fails move to next immediately');
-  console.log('[daily] - Failed riddles retry after 30 min independently');
+  console.log('[daily] - Failed riddles retry after 10 min independently');
   console.log('[daily] - Up to 3 total attempts per riddle\n');
 
   await generateSequentially(client);
 
   const successful = await printSummary();
+
+  await markComplete(client);
 
   if (successful === 0) {
     console.error('[daily] No riddles generated today.');

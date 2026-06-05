@@ -12,6 +12,7 @@ class Genazo(gl.Contract):
     daily_answers: str
     all_time_leaderboard: str
     weekly_leaderboard: str
+    generation_complete: str
 
     def __init__(self):
         self.players = json.dumps({})
@@ -21,6 +22,7 @@ class Genazo(gl.Contract):
         self.daily_answers = json.dumps({})
         self.all_time_leaderboard = json.dumps([])
         self.weekly_leaderboard = json.dumps([])
+        self.generation_complete = json.dumps(False)
 
     @gl.public.write
     def register_player(self, session_id: str, username: str):
@@ -54,6 +56,7 @@ class Genazo(gl.Contract):
             self.daily_day_number = json.dumps(day)
             self.daily_answers = json.dumps({})
             self.daily_riddles = json.dumps([])
+            self.generation_complete = json.dumps(False)
             if day % 7 == 0:
                 self.weekly_leaderboard = json.dumps([])
         else:
@@ -158,7 +161,7 @@ Return ONLY valid JSON:
         "C": "option",
         "D": "option"
     }},
-    "correct": "A",
+    "correct": "A or B or C or D",
     "explanation": "2 to 3 sentences",
     "fingerprint": "{topic}:unique_angle",
     "day": {day},
@@ -173,6 +176,49 @@ Return ONLY valid JSON:
             f"Both outputs are equivalent if they are both valid JSON riddles specifically about {topic} in the GenLayer ecosystem, even if the riddle text, hint wording, options, and explanation differ completely"
         )
 
+        def shuffle_options(riddle, day, riddle_number):
+            options = riddle.get('options', {})
+            correct_letter = riddle.get('correct', 'A').upper()
+
+            if not options or correct_letter not in options:
+                return riddle
+
+            correct_answer = options[correct_letter]
+
+            all_options = [
+                options.get('A', ''),
+                options.get('B', ''),
+                options.get('C', ''),
+                options.get('D', ''),
+            ]
+
+            seed = (day * 7 + riddle_number * 13) % 24
+
+            permutations = [
+                [0,1,2,3],[0,1,3,2],[0,2,1,3],[0,2,3,1],
+                [0,3,1,2],[0,3,2,1],[1,0,2,3],[1,0,3,2],
+                [1,2,0,3],[1,2,3,0],[1,3,0,2],[1,3,2,0],
+                [2,0,1,3],[2,0,3,1],[2,1,0,3],[2,1,3,0],
+                [2,3,0,1],[2,3,1,0],[3,0,1,2],[3,0,2,1],
+                [3,1,0,2],[3,1,2,0],[3,2,0,1],[3,2,1,0],
+            ]
+
+            order = permutations[seed % len(permutations)]
+            shuffled = [all_options[i] for i in order]
+
+            letters = ['A', 'B', 'C', 'D']
+            new_options = {}
+            new_correct = 'A'
+
+            for i, letter in enumerate(letters):
+                new_options[letter] = shuffled[i]
+                if shuffled[i] == correct_answer:
+                    new_correct = letter
+
+            riddle['options'] = new_options
+            riddle['correct'] = new_correct
+            return riddle
+
         try:
             clean = result.strip()
             if "```json" in clean:
@@ -181,6 +227,7 @@ Return ONLY valid JSON:
                 clean = clean.split("```")[1].split("```")[0].strip()
 
             riddle = json.loads(clean)
+            riddle = shuffle_options(riddle, day, riddle_number)
 
             fp = riddle.get("fingerprint", "")
             if fp:
@@ -204,6 +251,11 @@ Return ONLY valid JSON:
             "day": day,
             "riddle_number": riddle_number
         })
+
+    @gl.public.write
+    def mark_generation_complete(self, session_id: str):
+        self.generation_complete = json.dumps(True)
+        return json.dumps({"success": True})
 
     @gl.public.write
     def submit_daily_answer(self, session_id: str, username: str, answer: str, riddle_number: int):
@@ -290,6 +342,9 @@ Return ONLY valid JSON:
             if streak_bonus > 0:
                 player["total_points"] = player.get("total_points", 0) + streak_bonus
 
+            self._update_leaderboards(session_id, username, player)
+
+        if not all_answered and len(player_answers) >= 1:
             self._update_leaderboards(session_id, username, player)
 
         players[session_id] = player
@@ -419,3 +474,7 @@ Return ONLY valid JSON:
     @gl.public.view
     def get_day_number(self) -> str:
         return self.daily_day_number
+
+    @gl.public.view
+    def get_generation_status(self) -> str:
+        return self.generation_complete
