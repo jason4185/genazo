@@ -188,10 +188,10 @@ Return ONLY valid JSON:
                 self.fingerprints = json.dumps(fingerprints)
 
         except Exception as e:
-            riddle = {
+            return json.dumps({
                 "error": str(e)[:100],
                 "riddle_number": riddle_number
-            }
+            })
 
         # Insert at the correct index, padding with None if needed
         while len(riddles) < riddle_number:
