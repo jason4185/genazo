@@ -1486,14 +1486,14 @@ function clearStaleData() {
     keysToRemove.forEach(key => localStorage.removeItem(key));
     localStorage.setItem('genazo_contract_address', currentContract);
     console.log('[init] Cleared ' + keysToRemove.length + ' stale keys');
-  }
 
-  // Always reset in-memory state
-  sessionAnswers     = {};
-  allRiddles         = [];
-  currentRiddleIndex = 0;
-  S.day              = null;
-  isWaitingForRiddles = false;
+    // Reset in-memory state only when contract changes
+    sessionAnswers     = {};
+    allRiddles         = [];
+    currentRiddleIndex = 0;
+    S.day              = null;
+    isWaitingForRiddles = false;
+  }
 }
 
 async function init() {
