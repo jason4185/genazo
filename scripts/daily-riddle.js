@@ -13,20 +13,11 @@ const CONFIG = {
 const RETRY_DELAY = 10 * 60 * 1000; // 10 minutes
 const MAX_RETRIES = 3;
 
-// Track results for summary
-const results = {
-  1: null, 2: null, 3: null, 4: null, 5: null
-};
-
 async function sendTransaction(client, riddleNumber) {
   const hash = await client.writeContract({
     address: CONFIG.CONTRACT_ADDRESS,
     functionName: 'generate_daily_riddle',
-    args: [
-      CONFIG.ADMIN_SESSION,
-      CONFIG.DOCS_URL,
-      riddleNumber
-    ],
+    args: [CONFIG.ADMIN_SESSION, CONFIG.DOCS_URL, riddleNumber],
     value: 0,
   });
 
@@ -42,106 +33,37 @@ async function sendTransaction(client, riddleNumber) {
   return hash;
 }
 
-async function isGenerationConcluded(client) {
-  try {
-    const result = await client.readContract({
-      address: CONFIG.CONTRACT_ADDRESS,
-      functionName: 'get_generation_status',
-      args: [],
-    });
-    const status = typeof result === 'string' ? JSON.parse(result) : result;
-    return status === true;
-  } catch(err) {
-    console.error('[check] Could not read status:', err.message);
-    return false;
-  }
-}
-
-async function retryRiddle(client, riddleNumber, attemptsLeft) {
-  for (let attempt = 1; attempt <= attemptsLeft; attempt++) {
-    if (await isGenerationConcluded(client)) {
-      console.log(`[riddle ${riddleNumber}] Generation concluded by frontend. Stopping.`);
-      return;
-    }
-
+async function generateRiddleWithRetry(client, riddleNumber) {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      console.log(`[riddle ${riddleNumber}] 🔄 Retry attempt ${attempt} of ${attemptsLeft}`);
+      console.log(`[riddle ${riddleNumber}] Attempt ${attempt} of ${MAX_RETRIES}...`);
       await sendTransaction(client, riddleNumber);
-      console.log(`[riddle ${riddleNumber}] ✅ Retry succeeded`);
-      results[riddleNumber] = true;
-      return;
+      console.log(`[riddle ${riddleNumber}] ✅ Success`);
+      return true;
     } catch(err) {
-      console.error(`[riddle ${riddleNumber}] ❌ Retry ${attempt} failed:`, err.message);
+      console.error(`[riddle ${riddleNumber}] ❌ Attempt ${attempt} failed:`, err.message);
 
-      if (attempt < attemptsLeft) {
+      if (attempt < MAX_RETRIES) {
         const nextRetry = new Date(Date.now() + RETRY_DELAY);
-        console.log(`[riddle ${riddleNumber}] Next retry at ${nextRetry.toLocaleTimeString()}`);
+        console.log(`[riddle ${riddleNumber}] Retrying at ${nextRetry.toLocaleTimeString()}`);
         await new Promise(r => setTimeout(r, RETRY_DELAY));
       }
     }
   }
 
-  console.error(`[riddle ${riddleNumber}] ❌ All retries exhausted`);
-  results[riddleNumber] = false;
+  console.error(`[riddle ${riddleNumber}] ❌ All ${MAX_RETRIES} attempts failed`);
+  return false;
 }
 
-async function generateSequentially(client) {
-  const retryPromises = [];
+async function generateAllRiddles(client) {
+  const results = { 1: null, 2: null, 3: null, 4: null, 5: null };
 
   for (let i = 1; i <= 5; i++) {
-    if (await isGenerationConcluded(client)) {
-      console.log(`[daily] Generation concluded by frontend. Stopping at riddle ${i}.`);
-      break;
-    }
-
     console.log(`\n[daily] ═══ Riddle ${i} of 5 ═══`);
-    console.log(`[riddle ${i}] Starting now...`);
-
-    try {
-      await sendTransaction(client, i);
-      console.log(`[riddle ${i}] ✅ Success — moving to next`);
-      results[i] = true;
-
-    } catch(err) {
-      console.error(`[riddle ${i}] ❌ Failed:`, err.message);
-
-      const retryTime = new Date(Date.now() + RETRY_DELAY);
-      console.log(`[riddle ${i}] Scheduled retry at ${retryTime.toLocaleTimeString()}`);
-      console.log(`[riddle ${i}] Moving to next riddle immediately...`);
-
-      const retryPromise = (async () => {
-        await new Promise(r => setTimeout(r, RETRY_DELAY));
-        await retryRiddle(client, i, MAX_RETRIES - 1);
-      })();
-
-      retryPromises.push(retryPromise);
-      results[i] = 'pending';
-    }
+    results[i] = await generateRiddleWithRetry(client, i);
   }
 
-  if (retryPromises.length > 0) {
-    console.log(`\n[daily] Initial pass complete.`);
-    console.log(`[daily] ${retryPromises.length} riddle(s) have scheduled retries.`);
-    console.log(`[daily] Waiting for retries to complete...`);
-    await Promise.all(retryPromises);
-  }
-}
-
-async function printSummary() {
-  console.log('\n[daily] ═══ Final Summary ═══');
-  let successful = 0;
-  for (let i = 1; i <= 5; i++) {
-    const icon   = results[i] === true ? '✅' : '❌';
-    const status = results[i] === true
-      ? 'Generated'
-      : results[i] === false
-        ? 'Failed all retries'
-        : 'Unknown';
-    console.log(`[daily] Riddle ${i}: ${icon} ${status}`);
-    if (results[i] === true) successful++;
-  }
-  console.log(`\n[daily] ${successful} of 5 riddles ready for players`);
-  return successful;
+  return results;
 }
 
 async function markComplete(client) {
@@ -212,21 +134,26 @@ async function main() {
   const alreadyDone = await alreadyGeneratedToday(client);
 
   if (alreadyDone) {
-    console.log('[daily] Riddles already generated today. Exiting.');
+    console.log('[daily] Done for today. Exiting.');
     process.exit(0);
   }
 
   console.log('[daily] No riddles yet today. Generating...');
-  console.log('[daily] Strategy:');
-  console.log('[daily] - Generate riddles one by one sequentially');
-  console.log('[daily] - If one fails move to next immediately');
-  console.log('[daily] - Failed riddles retry after 10 min independently');
-  console.log('[daily] - Up to 3 total attempts per riddle\n');
 
-  await generateSequentially(client);
+  const results = await generateAllRiddles(client);
 
-  const successful = await printSummary();
+  console.log('\n[daily] ═══ Final Summary ═══');
+  let successful = 0;
+  for (let i = 1; i <= 5; i++) {
+    const icon   = results[i] === true ? '✅' : '❌';
+    const status = results[i] === true ? 'Generated' : 'Failed all retries';
+    console.log(`[daily] Riddle ${i}: ${icon} ${status}`);
+    if (results[i] === true) successful++;
+  }
+  console.log(`\n[daily] ${successful} of 5 riddles generated.`);
 
+  // Always mark complete so frontend knows generation is done,
+  // even if not all 5 succeeded — players score on what was generated.
   await markComplete(client);
 
   if (successful === 0) {
