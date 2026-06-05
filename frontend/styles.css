@@ -1226,3 +1226,6 @@ input { font-family: var(--font-ui); }
   .opt-btn       { font-size: 12px; padding: 10px 12px; }
   .score-big     { font-size: 32px; }
 }
+
+#signout-btn:hover  { background: #991B1B !important; transform: translateY(-1px); }
+#signout-btn:active { background: #B91C1C !important; transform: scale(0.98); }

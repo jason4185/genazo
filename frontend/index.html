@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://studio.genlayer.com https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'"/>
 <title>Genazo — The Daily GenLayer Riddle</title>
 <link rel="icon" type="image/jpeg" href="/logo.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -55,7 +56,7 @@
       <div style="font-size:13px;color:#5A5878;margin-bottom:24px">First come, first served on usernames.</div>
 
       <div style="position:relative;margin-bottom:12px">
-        <input id="signup-username" type="text" class="form-input" placeholder="Choose a username" maxlength="20" autocomplete="off" spellcheck="false" oninput="onSignupUsernameInput(this)" style="padding-right:48px"/>
+        <input id="signup-username" type="text" class="form-input" placeholder="choose a username (lowercase)" maxlength="20" autocomplete="off" spellcheck="false" oninput="this.value = this.value.toLowerCase(); onSignupUsernameInput(this)" style="padding-right:48px"/>
         <span id="signup-char-count" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11px;color:#3A3858;font-family:'Space Mono',monospace">0/20</span>
       </div>
       <input id="signup-password" type="password" class="form-input" placeholder="Create a password" style="margin-bottom:12px"/>
@@ -87,7 +88,7 @@
       <div style="font-size:22px;font-weight:700;color:#E8E6F4;margin-bottom:4px;font-family:'Space Grotesk',sans-serif">Welcome Back</div>
       <div style="font-size:13px;color:#5A5878;margin-bottom:24px">Enter your details to continue.</div>
 
-      <input id="signin-username" type="text" class="form-input" placeholder="Your username" autocomplete="off" style="margin-bottom:12px"/>
+      <input id="signin-username" type="text" class="form-input" placeholder="your username" autocomplete="off" oninput="this.value = this.value.toLowerCase()" style="margin-bottom:12px"/>
       <input id="signin-password" type="password" class="form-input" placeholder="Your password" style="margin-bottom:20px" onkeydown="if(event.key==='Enter')handleSignIn()"/>
 
       <button id="signin-submit-btn" type="button" class="btn btn-primary btn-full cta" onclick="handleSignIn()">Sign In</button>
@@ -277,7 +278,7 @@
           </div>
         </div>
       </div>
-      <button onclick="signOut()" style="width:100%;padding:13px;border-radius:10px;border:1px solid #2D2040;background:transparent;color:#4A4862;font-size:13px;font-weight:600;font-family:'Space Grotesk',sans-serif;cursor:pointer;margin-top:8px">Sign Out</button>
+      <button onclick="signOut()" id="signout-btn" style="width:100%;padding:13px;border-radius:10px;border:none;background:#7F1D1D;color:#FCA5A5;font-size:13px;font-weight:600;font-family:'Space Grotesk',sans-serif;cursor:pointer;margin-top:8px;transition:background 0.15s,transform 0.08s">Sign Out</button>
     </div>
   </div>
 </div>

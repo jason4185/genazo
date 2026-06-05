@@ -165,6 +165,19 @@ function showScreen(id) {
   if (id === 'screen-home') loadDailyRiddle();
 }
 
+// ── ANSWER ENCODING ──────────────────────────────────────────────────────
+function encodeAnswer(answer) {
+  return btoa(answer + '_genazo');
+}
+
+function decodeAnswer(encoded) {
+  try {
+    return atob(encoded).replace('_genazo', '');
+  } catch(e) {
+    return encoded;
+  }
+}
+
 // ── AUTH ──────────────────────────────────────────────────────────────────
 function isOldSession(sid) {
   return sid && !sid.startsWith('0x');
@@ -197,9 +210,38 @@ function hideLoading() {
   if (btn && btn.dataset.originalText) { btn.disabled = false; btn.textContent = btn.dataset.originalText; }
 }
 
-function enterApp() {
+async function syncPlayerState() {
+  try {
+    const day = await viewCall('get_day_number', []);
+    const parsedDay = typeof day === 'string' ? JSON.parse(day) : day;
+
+    const answersResult = await viewCall('get_daily_answers', []);
+    let answers = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
+    if (!Array.isArray(answers)) answers = [];
+
+    const myAnswer = answers.find(a =>
+      a.session_id === S.sessionId ||
+      a.username?.toLowerCase() === S.username?.toLowerCase()
+    );
+
+    if (myAnswer) {
+      const answered = myAnswer.answered || 0;
+      if (answered > 0) {
+        setStorage('genazo_last_answered_day', parsedDay.toString());
+      }
+    }
+
+    S.day = parsedDay;
+  } catch(err) {
+    console.error('[sync]', err);
+  }
+}
+
+async function enterApp() {
   clearStaleData();
-  if (!getStorage('genazo_onboarded')) {
+  await syncPlayerState();
+  const hasOnboarded = getStorage('genazo_onboarded', null);
+  if (!hasOnboarded) {
     showScreen('screen-onboarding');
   } else {
     showScreen('screen-home');
@@ -211,7 +253,6 @@ function checkExistingSession() {
   const name = localStorage.getItem('genazo_nickname') || localStorage.getItem('genazo_nick');
 
   if (sid && isOldSession(sid)) {
-    console.log('[auth] Old session detected. Showing landing.');
     localStorage.removeItem('genazo_session');
     localStorage.removeItem('genazo_nickname');
     const banner = document.getElementById('migration-banner');
@@ -240,7 +281,7 @@ function onSignupUsernameInput(input) {
 }
 
 async function handleSignUp() {
-  const username = document.getElementById('signup-username')?.value.trim() || '';
+  const username = document.getElementById('signup-username')?.value.trim().toLowerCase() || '';
   const password = document.getElementById('signup-password')?.value || '';
   const confirm  = document.getElementById('signup-confirm')?.value || '';
   const errorEl  = document.getElementById('signup-error');
@@ -259,6 +300,10 @@ async function handleSignUp() {
   }
   if (password !== confirm) {
     showAuthError(errorEl, 'Passwords do not match.');
+    return;
+  }
+  if (password.toLowerCase() === username.toLowerCase()) {
+    showAuthError(errorEl, 'Password cannot be the same as your username.');
     return;
   }
 
@@ -283,7 +328,7 @@ async function handleSignUp() {
 }
 
 async function handleSignIn() {
-  const username = document.getElementById('signin-username')?.value.trim() || '';
+  const username = document.getElementById('signin-username')?.value.trim().toLowerCase() || '';
   const password = document.getElementById('signin-password')?.value || '';
   const errorEl  = document.getElementById('signin-error');
 
@@ -428,17 +473,29 @@ function updateDashboardStats() {
 
 async function loadDashboardActivity() {
   try {
-    const raw  = await viewCall('get_daily_answers', []);
-    let data   = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const riddleResult = await viewCall('get_daily_riddle', []);
+    const riddleParsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
+    const totalRiddles = riddleParsed?.riddles?.length || 0;
+
+    const result = await viewCall('get_daily_answers', []);
+    let data = typeof result === 'string' ? JSON.parse(result) : result;
     if (!Array.isArray(data)) data = [];
-    const total   = data.length;
-    const correct = data.filter(p => p.correct).length;
-    const pct     = total > 0 ? Math.round((correct / total) * 100) : 0;
-    const el      = document.getElementById('activity-text');
-    if (el) el.textContent = total > 0
-      ? `${total} player${total !== 1 ? 's' : ''} answered today. ${pct}% got it right.`
-      : "Be the first to answer today's riddle!";
-  } catch(e) { console.error('[dashboard activity]', e); }
+
+    const total = data.length;
+    const allCorrect = data.filter(p =>
+      p.answered >= totalRiddles &&
+      p.correct === true &&
+      totalRiddles > 0
+    ).length;
+    const pct = total > 0 ? Math.round((allCorrect / total) * 100) : 0;
+
+    const el = document.getElementById('activity-text');
+    if (el) {
+      el.textContent = total > 0
+        ? `${total} player${total !== 1 ? 's' : ''} answered today. ${pct}% completed all ${totalRiddles} riddles correctly.`
+        : 'No answers yet today. Be the first!';
+    }
+  } catch(err) { console.error('[activity]', err); }
 }
 
 async function showDashboard() {
@@ -578,20 +635,17 @@ async function loadDailyRiddle() {
     const raw    = await viewCall('get_daily_riddle', []);
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
 
-    console.log('[loadDailyRiddle] parsed:', JSON.stringify(parsed).slice(0, 200));
-
     if (!parsed?.found) { renderNoRiddle(body); return; }
 
     if (parsed.riddles && Array.isArray(parsed.riddles) && parsed.riddles.length > 0) {
-      allRiddles = parsed.riddles;
+      allRiddles = parsed.riddles.map(r => ({ ...r, correct: encodeAnswer(r.correct), _encoded: true }));
     } else if (parsed.riddle) {
-      allRiddles = [parsed.riddle];
+      allRiddles = [{ ...parsed.riddle, correct: encodeAnswer(parsed.riddle.correct), _encoded: true }];
     } else {
       renderNoRiddle(body); return;
     }
     const parsedDay = parsed.day;
     if (S.day !== null && S.day !== parsedDay) {
-      console.log('[loadDailyRiddle] Day changed', S.day, '→', parsedDay, '. Resetting state.');
       sessionAnswers     = {};
       currentRiddleIndex = 0;
       isWaitingForRiddles = false;
@@ -599,8 +653,6 @@ async function loadDailyRiddle() {
     S.day          = parsedDay;
     S.totalAnswers = parsed.total_answers || 0;
     S.riddle       = allRiddles[0] || null;
-
-    console.log('[loadDailyRiddle] day:', S.day, '| riddles:', allRiddles.length);
 
     updateAllStatDisplays();
     updateRankDisplay();
@@ -613,7 +665,6 @@ async function loadDailyRiddle() {
     if (savedAnswers) {
       try {
         sessionAnswers = JSON.parse(savedAnswers);
-        console.log('[loadDailyRiddle] restored answers:', Object.keys(sessionAnswers).length);
       } catch(e) {
         sessionAnswers = {};
       }
@@ -622,8 +673,6 @@ async function loadDailyRiddle() {
     }
 
     currentRiddleIndex = Object.keys(sessionAnswers).length;
-    console.log('[restore] sessionAnswers:', JSON.stringify(sessionAnswers));
-    console.log('[restore] currentRiddleIndex:', currentRiddleIndex);
 
     if (currentRiddleIndex >= allRiddles.length) {
       showWaitingForRiddles();
@@ -758,7 +807,7 @@ function submitAnswer() {
 
   S.isSubmitting = true;
 
-  const correct   = riddle.correct.toUpperCase();
+  const correct   = (riddle._encoded ? decodeAnswer(riddle.correct) : riddle.correct).toUpperCase();
   const isCorrect = S.selectedAnswer.toUpperCase() === correct;
   const points    = isCorrect ? 100 : 0;
 
@@ -773,7 +822,6 @@ function submitAnswer() {
   // Submit to blockchain in background
   callWrite('submit_daily_answer', [S.sessionId, S.username, S.selectedAnswer, riddleNumber])
     .then(hash => {
-      console.log('[submit] confirmed:', hash);
       if (hash) {
         localStorage.setItem('genazo_last_tx_hash', hash);
         showTxHash(hash);
@@ -943,7 +991,6 @@ function goToNextRiddle() {
 }
 
 function concludeDay() {
-  console.log('[conclude] called. riddles:', allRiddles.length, 'answered:', Object.keys(sessionAnswers).length);
   const answered  = Object.keys(sessionAnswers).length;
   const available = allRiddles.length;
 
@@ -962,7 +1009,6 @@ function concludeDay() {
 
 function showWaitingForRiddles() {
   isWaitingForRiddles = true;
-  console.log('[waiting] started. answered:', Object.keys(sessionAnswers).length, 'available:', allRiddles.length);
   const answered  = Object.keys(sessionAnswers).length;
   const remaining = 5 - answered;
 
@@ -992,8 +1038,6 @@ function showWaitingForRiddles() {
       const parsed       = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
       const newRiddles   = parsed?.riddles || [];
       const answeredNow  = Object.keys(sessionAnswers).length;
-      console.log('[poll] generation complete:', isDone, 'riddles:', newRiddles.length, 'answered:', answeredNow);
-
       if (newRiddles.length > allRiddles.length) {
         allRiddles = newRiddles;
         if (newRiddles.length > answeredNow) {
@@ -1112,7 +1156,7 @@ function checkForNewRiddles() {
 
       if (newCount > currentCount) {
         clearInterval(interval);
-        allRiddles = parsed.riddles;
+        allRiddles = parsed.riddles.map(r => ({ ...r, correct: encodeAnswer(r.correct), _encoded: true }));
         const banner = document.getElementById('new-riddle-banner');
         if (banner) {
           banner.style.display = 'flex';
@@ -1456,8 +1500,6 @@ function clearStaleData() {
   const currentContract = CONFIG.CONTRACT_ADDRESS;
 
   if (storedContract !== currentContract) {
-    console.log('[init] Contract changed. Clearing.');
-
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -1487,7 +1529,6 @@ function clearStaleData() {
     S.day              = null;
     isWaitingForRiddles = false;
 
-    console.log('[init] Cleared and saved new contract address');
   }
 }
 

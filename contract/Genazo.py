@@ -445,6 +445,7 @@ Return ONLY valid JSON:
             any_correct = any(v.get("correct", False) for v in player_answers.values())
             username = players.get(sid, {}).get("username", "Anonymous")
             result.append({
+                "session_id": sid,
                 "username": username,
                 "correct": any_correct,
                 "points": total_pts,
