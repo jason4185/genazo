@@ -682,8 +682,16 @@ function submitAnswer() {
   S.isSubmitting = false;
 
   callWrite('submit_daily_answer', [S.sessionId, S.username, S.selectedAnswer, riddleNumber])
-    .then(hash => { console.log('[submit] confirmed:', hash); showTxHash(hash); updateRankDisplay(); })
-    .catch(err  => console.error('[submit] error:', err.message));
+    .then(hash => {
+      console.log('[submit] confirmed:', hash);
+      if (hash) {
+        localStorage.setItem('genazo_last_tx_hash', hash);
+        showTxHash(hash);
+      }
+      updateRankDisplay();
+      setTimeout(() => loadLeaderboard('alltime'), 5000);
+    })
+    .catch(err => console.error('[submit] error:', err.message));
 }
 
 // ── RESULT SCREEN ─────────────────────────────────────────────────────────
