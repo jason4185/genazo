@@ -246,44 +246,40 @@ async function handleSignUp() {
   const errorEl  = document.getElementById('signup-error');
 
   if (username.length < 3 || username.length > 20) {
-    showAuthError(errorEl, 'Username must be 3 to 20 characters.'); return;
+    showAuthError(errorEl, 'Username must be 3 to 20 characters.');
+    return;
   }
   if (/\s/.test(username)) {
-    showAuthError(errorEl, 'Username cannot contain spaces.'); return;
+    showAuthError(errorEl, 'Username cannot contain spaces.');
+    return;
   }
   if (password.length < 6) {
-    showAuthError(errorEl, 'Password must be at least 6 characters.'); return;
+    showAuthError(errorEl, 'Password must be at least 6 characters.');
+    return;
   }
   if (password !== confirm) {
-    showAuthError(errorEl, 'Passwords do not match.'); return;
+    showAuthError(errorEl, 'Passwords do not match.');
+    return;
   }
 
   const sid = await generateSessionId(username, password);
-  const btn = document.getElementById('signup-submit-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Creating account...'; }
 
-  try {
-    const result = await callWrite('register_player', [sid, username]);
-    const parsed = typeof result === 'string' ? safeParse(result) : result;
+  saveSession(sid, username);
+  enterApp();
 
-    if (parsed?.error === 'username_taken') {
-      showAuthError(errorEl, 'This username is already taken.');
-      if (btn) { btn.disabled = false; btn.textContent = 'Create Account'; }
-      return;
-    }
-    if (parsed?.error === 'already_registered') {
-      showAuthError(errorEl, 'This username is already registered. Please sign in instead.');
-      if (btn) { btn.disabled = false; btn.textContent = 'Create Account'; }
-      return;
-    }
-
-    saveSession(sid, username);
-    enterApp();
-  } catch(err) {
-    console.error('[signup]', err);
-    showAuthError(errorEl, 'Connection error. Please try again.');
-    if (btn) { btn.disabled = false; btn.textContent = 'Create Account'; }
-  }
+  callWrite('register_player', [sid, username])
+    .then(result => {
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      if (parsed?.error === 'username_taken') {
+        localStorage.removeItem('genazo_session');
+        localStorage.removeItem('genazo_nickname');
+        showScreen('screen-signup');
+        showAuthError(errorEl, 'This username is already taken. Choose a different one.');
+      }
+    })
+    .catch(err => {
+      console.error('[signup]', err);
+    });
 }
 
 async function handleSignIn() {
@@ -292,28 +288,63 @@ async function handleSignIn() {
   const errorEl  = document.getElementById('signin-error');
 
   if (!username || !password) {
-    showAuthError(errorEl, 'Please enter your username and password.'); return;
+    showAuthError(errorEl, 'Please enter your username and password.');
+    return;
   }
 
   const sid = await generateSessionId(username, password);
+
   const btn = document.getElementById('signin-submit-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Signing in...'; }
 
   try {
     const result = await viewCall('get_player', [sid]);
-    const parsed = typeof result === 'string' ? safeParse(result) : result;
+    const parsed = typeof result === 'string' ? JSON.parse(result) : result;
 
     if (parsed?.found) {
       saveSession(sid, username);
       enterApp();
-    } else {
-      showAuthError(errorEl, 'Account not found. Check your username and password carefully.');
-      if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+      return;
     }
+
+    // Not found — wait 3 seconds and retry once
+    await new Promise(r => setTimeout(r, 3000));
+
+    const retryResult = await viewCall('get_player', [sid]);
+    const retryParsed = typeof retryResult === 'string' ? JSON.parse(retryResult) : retryResult;
+
+    if (retryParsed?.found) {
+      saveSession(sid, username);
+      enterApp();
+      return;
+    }
+
+    // Still not found — check if username exists via register attempt
+    callWrite('register_player', [sid, username])
+      .then(r => {
+        const p = typeof r === 'string' ? JSON.parse(r) : r;
+        if (p?.error === 'username_taken') {
+          if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+          showAuthError(errorEl, 'Wrong password. Please try again.');
+        } else {
+          if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+          showAuthError(errorEl, 'Account not found. Create an account first.');
+        }
+      })
+      .catch(() => {
+        saveSession(sid, username);
+        enterApp();
+      });
+
   } catch(err) {
     console.error('[signin]', err);
-    showAuthError(errorEl, 'Connection error. Please try again.');
-    if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+    saveSession(sid, username);
+    enterApp();
+  } finally {
+    if (btn && btn.disabled) {
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+    }
   }
 }
 
@@ -572,12 +603,7 @@ async function loadDailyRiddle() {
     console.log('[loadDailyRiddle] resuming at index:', currentRiddleIndex);
 
     if (currentRiddleIndex >= allRiddles.length) {
-      const totalAnswered = Object.keys(sessionAnswers).length;
-      if (totalAnswered >= allRiddles.length && allRiddles.length > 0) {
-        concludeDay();
-      } else {
-        showWaitingForRiddles();
-      }
+      showWaitingForRiddles();
       return;
     }
 
@@ -813,7 +839,7 @@ function showRiddleResult(isCorrect, points, answer, riddle, riddleNumber) {
 
   const answeredCount  = Object.keys(sessionAnswers).length;
   const availableCount = allRiddles.length;
-  const totalExpected  = allRiddles.length;
+  const totalExpected  = 5;
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   const get = (id)    => document.getElementById(id);
 
@@ -894,6 +920,7 @@ function goToNextRiddle() {
 }
 
 function concludeDay() {
+  console.log('[conclude] called. riddles:', allRiddles.length, 'answered:', Object.keys(sessionAnswers).length);
   const answered  = Object.keys(sessionAnswers).length;
   const available = allRiddles.length;
 
@@ -912,6 +939,7 @@ function concludeDay() {
 
 function showWaitingForRiddles() {
   isWaitingForRiddles = true;
+  console.log('[waiting] started. answered:', Object.keys(sessionAnswers).length, 'available:', allRiddles.length);
   const answered  = Object.keys(sessionAnswers).length;
   const remaining = 5 - answered;
 
@@ -941,6 +969,7 @@ function showWaitingForRiddles() {
       const parsed       = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
       const newRiddles   = parsed?.riddles || [];
       const answeredNow  = Object.keys(sessionAnswers).length;
+      console.log('[poll] generation complete:', isDone, 'riddles:', newRiddles.length, 'answered:', answeredNow);
 
       if (newRiddles.length > allRiddles.length) {
         allRiddles = newRiddles;
