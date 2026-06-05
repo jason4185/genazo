@@ -981,17 +981,38 @@ function updateAllAvatars() {
   });
 }
 
-async function init() {
-  const storedContract = localStorage.getItem('genazo_contract');
-  if (storedContract !== CONFIG.CONTRACT_ADDRESS) {
-    ['genazo_streak','genazo_best_streak','genazo_points',
-     'genazo_days_answered','genazo_days_correct',
-     'genazo_last_answered_day','genazo_last_result',
-     'genazo_streak_history','genazo_player_stats',
-    ].forEach(k => localStorage.removeItem(k));
-    localStorage.setItem('genazo_contract', CONFIG.CONTRACT_ADDRESS);
-    console.log('[init] Contract changed — cleared cache');
+function clearStaleData() {
+  const storedContract = localStorage.getItem('genazo_contract_address');
+  const currentContract = CONFIG.CONTRACT_ADDRESS;
+
+  if (storedContract !== currentContract) {
+    console.log('[init] Contract changed. Clearing stale data.');
+
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith('genazo_answered') ||
+        key.startsWith('genazo_last_answered') ||
+        key.startsWith('genazo_tx_hashes') ||
+        key.startsWith('genazo_streak') ||
+        key.startsWith('genazo_points') ||
+        key.startsWith('genazo_days') ||
+        key.startsWith('genazo_lb') ||
+        key.startsWith('genazo_onboarded')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    localStorage.setItem('genazo_contract_address', currentContract);
+    console.log('[init] Cleared ' + keysToRemove.length + ' stale keys');
   }
+}
+
+async function init() {
+  clearStaleData();
 
   document.getElementById('nav-home')?.addEventListener('click', () => showScreen('screen-home'));
 
