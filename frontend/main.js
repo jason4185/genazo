@@ -603,7 +603,7 @@ async function showDashboard() {
   loadDashboardActivity();
 }
 
-function showTodayRiddle() {
+async function showTodayRiddle() {
   isWaitingForRiddles = false;
   S.homeView = 1;
   const body = document.getElementById('home-body');
@@ -615,7 +615,7 @@ function showTodayRiddle() {
 
   const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day') || '0');
   if (S.day && lastAnsweredDay >= S.day) {
-    renderAnswered(wrap, safeParse(getStorage('genazo_last_result')));
+    await showAlreadyAnswered();
     return;
   }
 
@@ -705,7 +705,7 @@ async function loadDailyRiddle() {
     console.error('[load] day:', parsedDay, 'lastAnswered:', lastAnsweredDay);
 
     if (lastAnsweredDay >= parsedDay) {
-      await showDashboard();
+      await showAlreadyAnswered();
       return;
     }
 
@@ -1199,6 +1199,59 @@ function showFinalScore() {
   loadCommunityResults();
 
   if (allRiddles.length < 5) checkForNewRiddles(); // poll until 5 are generated
+}
+
+async function showAlreadyAnswered() {
+  try {
+    const answersResult = await viewCall('get_player_answers', [S.sessionId]);
+    const answersParsed = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
+
+    const onChainAnswers = answersParsed?.answers || {};
+    const totalCorrect = answersParsed?.total_correct || 0;
+    const totalPoints = answersParsed?.total_points || 0;
+    const totalAnswered = answersParsed?.total_answered || 0;
+
+    const playerResult = await viewCall('get_player', [S.sessionId]);
+    const playerParsed = typeof playerResult === 'string' ? JSON.parse(playerResult) : playerResult;
+    const player = playerParsed?.player || {};
+
+    const streak = player.streak || 0;
+    let streakBonus = 0;
+    if (totalCorrect > 0) {
+      if      (streak >= 30) streakBonus = 100;
+      else if (streak >= 7)  streakBonus = 50;
+      else if (streak >= 3)  streakBonus = 25;
+    }
+
+    showScreen('screen-final');
+
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('final-score',   totalPoints + ' pts');
+    set('final-correct', totalCorrect + ' / ' + totalAnswered + ' correct');
+    set('final-av',      (S.username || '?')[0].toUpperCase());
+    set('final-username', S.username || '');
+    set('streak-final-text', streak >= 1
+      ? `${streak} day streak${streakBonus > 0 ? ` · +${streakBonus} bonus` : ''}`
+      : 'No streak today');
+
+    const riddleCountEl = document.getElementById('final-riddle-count');
+    if (riddleCountEl) {
+      if (totalAnswered < 5) {
+        riddleCountEl.textContent = `Only ${totalAnswered} riddle${totalAnswered !== 1 ? 's' : ''} were generated today by AI validators. Full 5 tomorrow.`;
+        riddleCountEl.style.display = 'block';
+      } else {
+        riddleCountEl.style.display = 'none';
+      }
+    }
+
+    updateProgressDots();
+    updateAllAvatars();
+    loadCommunityResults();
+  } catch(err) {
+    console.error('[showAlreadyAnswered] error:', err);
+    showScreen('screen-final');
+    loadCommunityResults();
+  }
 }
 
 function checkForNewRiddles() {
