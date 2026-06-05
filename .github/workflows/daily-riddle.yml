@@ -15,10 +15,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install dependencies
         run: cd scripts && npm install
 
       - name: Generate daily riddle
         run: cd scripts && node daily-riddle.js
+        env:
+          FUNDED_PRIVATE_KEY: ${{ secrets.FUNDED_PRIVATE_KEY }}
