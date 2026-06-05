@@ -226,40 +226,44 @@ async function syncPlayerState() {
     const lastDayAnswered = player?.last_day_answered || 0;
 
     if (lastDayAnswered >= parsedDay) {
-      // Already fully completed today on another device
+      // Fully completed today on another device
       setStorage('genazo_last_answered_day', parsedDay.toString());
       return;
     }
 
-    const answersResult = await viewCall('get_daily_answers', []);
-    let answers = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
-    if (!Array.isArray(answers)) answers = [];
+    // Fetch exact riddle-by-riddle answers from on-chain
+    const answersResult = await viewCall('get_player_answers', [S.sessionId]);
+    const answersParsed = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
 
-    const myAnswer = answers.find(a => a.session_id === S.sessionId);
+    if (!answersParsed?.found) return;
 
-    if (myAnswer && myAnswer.answered > 0) {
-      const answeredCount = myAnswer.answered;
+    const onChainAnswers = answersParsed.answers;
+    const totalAnswered  = answersParsed.total_answered;
 
-      setStorage('genazo_answered_count_' + parsedDay, answeredCount.toString());
+    if (totalAnswered === 0) return;
 
-      const pointsPerRiddle = 100;
-      const totalPoints = myAnswer.points || 0;
-      const correctCount = Math.round(totalPoints / pointsPerRiddle);
-
-      const mockAnswers = {};
-      for (let i = 1; i <= answeredCount; i++) {
-        mockAnswers[i] = {
-          answer: 'synced',
-          correct: i <= correctCount,
-          points: i <= correctCount ? 100 : 0,
-          synced: true,
-        };
-      }
-
-      sessionAnswers = mockAnswers;
-      setStorage('genazo_session_answers_' + parsedDay, JSON.stringify(mockAnswers));
-      currentRiddleIndex = answeredCount;
+    // Restore exact sessionAnswers from on-chain data
+    const restoredAnswers = {};
+    for (const [riddleNum, data] of Object.entries(onChainAnswers)) {
+      restoredAnswers[parseInt(riddleNum)] = {
+        answer:  data.answer  || '',
+        correct: data.correct || false,
+        points:  data.points  || 0,
+        synced:  true,
+      };
     }
+
+    sessionAnswers = restoredAnswers;
+    setStorage('genazo_session_answers_' + parsedDay, JSON.stringify(restoredAnswers));
+    setStorage('genazo_answered_count_'   + parsedDay, totalAnswered.toString());
+    currentRiddleIndex = totalAnswered;
+
+    // Sync stats from on-chain player profile
+    if (player.streak       !== undefined) setStorage('genazo_streak',        player.streak.toString());
+    if (player.total_points !== undefined) setStorage('genazo_points',         player.total_points.toString());
+    if (player.days_answered !== undefined) setStorage('genazo_days_answered', player.days_answered.toString());
+    if (player.days_correct  !== undefined) setStorage('genazo_days_correct',  player.days_correct.toString());
+
   } catch(err) {
     console.error('[sync]', err);
   }

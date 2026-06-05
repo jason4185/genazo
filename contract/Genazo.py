@@ -473,6 +473,24 @@ Return ONLY valid JSON:
         })
 
     @gl.public.view
+    def get_player_answers(self, session_id: str) -> str:
+        answers = json.loads(self.daily_answers)
+        player_answers = answers.get(session_id, {})
+        return json.dumps({
+            "found": len(player_answers) > 0,
+            "answers": player_answers,
+            "total_answered": len(player_answers),
+            "total_correct": sum(
+                1 for v in player_answers.values()
+                if v.get("correct", False)
+            ),
+            "total_points": sum(
+                v.get("points", 0)
+                for v in player_answers.values()
+            )
+        })
+
+    @gl.public.view
     def get_day_number(self) -> str:
         return self.daily_day_number
 
