@@ -124,18 +124,55 @@ async function printSummary() {
   return successful;
 }
 
+async function alreadyGeneratedToday(client) {
+  try {
+    const result = await client.readContract({
+      address: CONFIG.CONTRACT_ADDRESS,
+      functionName: 'get_daily_riddle',
+      args: [],
+    });
+
+    const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+
+    if (!parsed?.found) return false;
+
+    const riddles = parsed.riddles || [];
+    const day = parsed.day || 0;
+
+    if (riddles.length >= 5) {
+      console.log(`[daily] Day ${day} already has ${riddles.length} riddles. Skipping.`);
+      return true;
+    }
+
+    return false;
+  } catch(err) {
+    console.error('[daily] Could not check existing riddles:', err.message);
+    return false;
+  }
+}
+
 async function main() {
   console.log('[daily] ═══════════════════════════════');
   console.log('[daily] Genazo Daily Riddle Generation');
   console.log('[daily] ═══════════════════════════════');
+
+  const account = createAccount(CONFIG.FUNDED_PRIVATE_KEY);
+  const client  = createClient({ chain: studionet, account });
+
+  console.log('[daily] Checking if riddles already exist...');
+  const alreadyDone = await alreadyGeneratedToday(client);
+
+  if (alreadyDone) {
+    console.log('[daily] Riddles already generated today. Exiting.');
+    process.exit(0);
+  }
+
+  console.log('[daily] No riddles yet today. Generating...');
   console.log('[daily] Strategy:');
   console.log('[daily] - Generate riddles one by one sequentially');
   console.log('[daily] - If one fails move to next immediately');
   console.log('[daily] - Failed riddles retry after 30 min independently');
   console.log('[daily] - Up to 3 total attempts per riddle\n');
-
-  const account = createAccount(CONFIG.FUNDED_PRIVATE_KEY);
-  const client  = createClient({ chain: studionet, account });
 
   await generateSequentially(client);
 
