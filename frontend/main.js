@@ -767,10 +767,8 @@ function showTxHash(hash) {
   if (!hash) return;
   const display = document.getElementById('tx-hash-display');
   const text    = document.getElementById('tx-hash-text');
-  const link    = document.getElementById('tx-hash-link');
-  if (display && text && link) {
+  if (display && text) {
     text.textContent = hash.slice(0, 8) + '…' + hash.slice(-6);
-    link.href = 'https://studio.genlayer.com/transactions/' + hash;
     display.style.display = 'flex';
   }
 }
