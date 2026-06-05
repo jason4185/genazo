@@ -609,26 +609,21 @@ async function loadDailyRiddle() {
     if (lastAnsweredDay >= S.day) { await showDashboard(); return; }
 
     // Restore progress if mid-day
-    const answeredCount = parseInt(getStorage('genazo_answered_count_' + S.day, '0'));
-    currentRiddleIndex  = answeredCount;
-    sessionAnswers = {};
     const savedAnswers = getStorage('genazo_session_answers_' + S.day, null);
     if (savedAnswers) {
       try {
-        const restoredParsed = JSON.parse(savedAnswers);
-        const parsedDay = parseInt(S.day);
-        const savedDay  = parseInt(getStorage('genazo_last_answered_day', '0'));
-        if (parsedDay > savedDay) {
-          sessionAnswers = {};
-        } else {
-          sessionAnswers = restoredParsed;
-        }
+        sessionAnswers = JSON.parse(savedAnswers);
+        console.log('[loadDailyRiddle] restored answers:', Object.keys(sessionAnswers).length);
       } catch(e) {
         sessionAnswers = {};
       }
+    } else {
+      sessionAnswers = {};
     }
 
-    console.log('[loadDailyRiddle] resuming at index:', currentRiddleIndex);
+    currentRiddleIndex = Object.keys(sessionAnswers).length;
+    console.log('[restore] sessionAnswers:', JSON.stringify(sessionAnswers));
+    console.log('[restore] currentRiddleIndex:', currentRiddleIndex);
 
     if (currentRiddleIndex >= allRiddles.length) {
       showWaitingForRiddles();
