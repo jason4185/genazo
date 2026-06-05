@@ -155,10 +155,16 @@ function isOldSession(sid) {
 }
 
 function saveSession(sid, username) {
-  const existingSid = localStorage.getItem('genazo_session');
+  const existingSid      = localStorage.getItem('genazo_session');
+  const existingUsername = localStorage.getItem('genazo_nickname');
 
-  if (existingSid !== sid) {
-    console.log('[auth] New user detected. Clearing game data.');
+  const isDifferentUser =
+    existingSid !== null &&
+    existingSid !== sid &&
+    existingUsername?.toLowerCase() !== username.toLowerCase();
+
+  if (isDifferentUser) {
+    console.log('[auth] Different user. Clearing data.');
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -176,7 +182,7 @@ function saveSession(sid, username) {
       }
     }
     keysToRemove.forEach(key => localStorage.removeItem(key));
-    console.log('[auth] Cleared ' + keysToRemove.length + ' stale keys');
+    console.log('[auth] Cleared ' + keysToRemove.length + ' keys');
   }
 
   localStorage.setItem('genazo_session', sid);
