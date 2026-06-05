@@ -217,33 +217,48 @@ async function syncPlayerState() {
 
     S.day = parsedDay;
 
+    const playerResult = await viewCall('get_player', [S.sessionId]);
+    const playerParsed = typeof playerResult === 'string' ? JSON.parse(playerResult) : playerResult;
+
+    if (!playerParsed?.found) return;
+
+    const player = playerParsed.player;
+    const lastDayAnswered = player?.last_day_answered || 0;
+
+    if (lastDayAnswered >= parsedDay) {
+      // Already fully completed today on another device
+      setStorage('genazo_last_answered_day', parsedDay.toString());
+      return;
+    }
+
     const answersResult = await viewCall('get_daily_answers', []);
     let answers = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
     if (!Array.isArray(answers)) answers = [];
 
-    const myAnswer = answers.find(a =>
-      a.session_id === S.sessionId ||
-      a.username?.toLowerCase() === S.username?.toLowerCase()
-    );
+    const myAnswer = answers.find(a => a.session_id === S.sessionId);
 
     if (myAnswer && myAnswer.answered > 0) {
-      const answeredCount = myAnswer.answered || 0;
+      const answeredCount = myAnswer.answered;
 
-      const statusResult = await viewCall('get_generation_status', []);
-      const isDone = typeof statusResult === 'string' ? JSON.parse(statusResult) : statusResult;
+      setStorage('genazo_answered_count_' + parsedDay, answeredCount.toString());
 
-      const riddleResult = await viewCall('get_daily_riddle', []);
-      const riddleParsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
-      const totalRiddles = riddleParsed?.riddles?.length || 0;
+      const pointsPerRiddle = 100;
+      const totalPoints = myAnswer.points || 0;
+      const correctCount = Math.round(totalPoints / pointsPerRiddle);
 
-      if (isDone && answeredCount >= totalRiddles) {
-        // Fully completed on another device — show already played
-        setStorage('genazo_last_answered_day', parsedDay.toString());
-      } else if (answeredCount > 0 && answeredCount < totalRiddles) {
-        // Partially completed on another device — resume from correct riddle
-        setStorage('genazo_answered_count_' + parsedDay, answeredCount.toString());
-        currentRiddleIndex = answeredCount;
+      const mockAnswers = {};
+      for (let i = 1; i <= answeredCount; i++) {
+        mockAnswers[i] = {
+          answer: 'synced',
+          correct: i <= correctCount,
+          points: i <= correctCount ? 100 : 0,
+          synced: true,
+        };
       }
+
+      sessionAnswers = mockAnswers;
+      setStorage('genazo_session_answers_' + parsedDay, JSON.stringify(mockAnswers));
+      currentRiddleIndex = answeredCount;
     }
   } catch(err) {
     console.error('[sync]', err);
