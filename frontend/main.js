@@ -41,23 +41,38 @@ let currentRiddleIndex = 0;
 let allRiddles = [];
 let sessionAnswers = {};
 
+// ── SESSION-SCOPED STORAGE ────────────────────────────────────────────────
+function storageKey(key) {
+  return key + '_' + (S.sessionId || 'guest');
+}
+function getStorage(key, fallback = null) {
+  const val = localStorage.getItem(storageKey(key));
+  return val !== null ? val : fallback;
+}
+function setStorage(key, value) {
+  localStorage.setItem(storageKey(key), value);
+}
+function removeStorage(key) {
+  localStorage.removeItem(storageKey(key));
+}
+
 // ── STATS — single source of truth ────────────────────────────────────────
 function getPlayerStats() {
   return {
-    streak:       parseInt(localStorage.getItem('genazo_streak')        || '0'),
-    bestStreak:   parseInt(localStorage.getItem('genazo_best_streak')   || '0'),
-    totalPoints:  parseInt(localStorage.getItem('genazo_points')        || '0'),
-    daysAnswered: parseInt(localStorage.getItem('genazo_days_answered') || '0'),
-    daysCorrect:  parseInt(localStorage.getItem('genazo_days_correct')  || '0'),
+    streak:       parseInt(getStorage('genazo_streak',        '0')),
+    bestStreak:   parseInt(getStorage('genazo_best_streak',   '0')),
+    totalPoints:  parseInt(getStorage('genazo_points',        '0')),
+    daysAnswered: parseInt(getStorage('genazo_days_answered', '0')),
+    daysCorrect:  parseInt(getStorage('genazo_days_correct',  '0')),
   };
 }
 
 function savePlayerStats(stats) {
-  localStorage.setItem('genazo_streak',        stats.streak        ?? 0);
-  localStorage.setItem('genazo_best_streak',   stats.bestStreak    ?? 0);
-  localStorage.setItem('genazo_points',        stats.totalPoints   ?? 0);
-  localStorage.setItem('genazo_days_answered', stats.daysAnswered  ?? 0);
-  localStorage.setItem('genazo_days_correct',  stats.daysCorrect   ?? 0);
+  setStorage('genazo_streak',        stats.streak        ?? 0);
+  setStorage('genazo_best_streak',   stats.bestStreak    ?? 0);
+  setStorage('genazo_points',        stats.totalPoints   ?? 0);
+  setStorage('genazo_days_answered', stats.daysAnswered  ?? 0);
+  setStorage('genazo_days_correct',  stats.daysCorrect   ?? 0);
 }
 
 function updateAllStatDisplays() {
@@ -155,36 +170,6 @@ function isOldSession(sid) {
 }
 
 function saveSession(sid, username) {
-  const existingSid      = localStorage.getItem('genazo_session');
-  const existingUsername = localStorage.getItem('genazo_nickname');
-
-  const isDifferentUser =
-    existingSid !== null &&
-    existingSid !== sid &&
-    existingUsername?.toLowerCase() !== username.toLowerCase();
-
-  if (isDifferentUser) {
-    console.log('[auth] Different user. Clearing data.');
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (
-        key.startsWith('genazo_answered') ||
-        key.startsWith('genazo_last_answered') ||
-        key.startsWith('genazo_tx_hashes') ||
-        key.startsWith('genazo_streak') ||
-        key.startsWith('genazo_points') ||
-        key.startsWith('genazo_days') ||
-        key.startsWith('genazo_lb') ||
-        key.startsWith('genazo_onboarded')
-      )) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-    console.log('[auth] Cleared ' + keysToRemove.length + ' keys');
-  }
-
   localStorage.setItem('genazo_session', sid);
   localStorage.setItem('genazo_nickname', username);
   S.sessionId = sid;
@@ -213,7 +198,7 @@ function hideLoading() {
 
 function enterApp() {
   clearStaleData();
-  if (!localStorage.getItem('genazo_onboarded')) {
+  if (!getStorage('genazo_onboarded')) {
     showScreen('screen-onboarding');
   } else {
     showScreen('screen-home');
@@ -340,7 +325,6 @@ function signOut() {
   if (confirm('Sign out? You will need your username and password to sign back in.')) {
     localStorage.removeItem('genazo_session');
     localStorage.removeItem('genazo_nickname');
-    localStorage.removeItem('genazo_onboarded');
     S.sessionId = null;
     S.username  = null;
     showScreen('screen-landing');
@@ -348,7 +332,7 @@ function signOut() {
 }
 
 function completeOnboarding() {
-  localStorage.setItem('genazo_onboarded', '1');
+  setStorage('genazo_onboarded', '1');
   showScreen('screen-home');
 }
 
@@ -492,9 +476,9 @@ function showTodayRiddle() {
   body.innerHTML = viewNavHtml(1);
   body.appendChild(wrap);
 
-  const lastAnsweredDay = parseInt(localStorage.getItem('genazo_last_answered_day') || '0');
+  const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day') || '0');
   if (S.day && lastAnsweredDay >= S.day) {
-    renderAnswered(wrap, safeParse(localStorage.getItem('genazo_last_result')));
+    renderAnswered(wrap, safeParse(getStorage('genazo_last_result')));
     return;
   }
 
@@ -519,7 +503,7 @@ async function loadDailyRiddle() {
 
   // Skip re-fetch if riddles already loaded for today
   if (allRiddles.length && S.day) {
-    const lastAnsweredDay = parseInt(localStorage.getItem('genazo_last_answered_day') || '0');
+    const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day') || '0');
     if (lastAnsweredDay >= S.day) { await showDashboard(); return; }
     showTodayRiddle(); return;
   }
@@ -551,13 +535,13 @@ async function loadDailyRiddle() {
     updateAllStatDisplays();
     updateRankDisplay();
 
-    const lastAnsweredDay = parseInt(localStorage.getItem('genazo_last_answered_day') || '0');
+    const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day') || '0');
     if (lastAnsweredDay >= S.day) { await showDashboard(); return; }
 
     // Restore progress if mid-day
-    const answeredCount = parseInt(localStorage.getItem('genazo_answered_count_' + S.day) || '0');
+    const answeredCount = parseInt(getStorage('genazo_answered_count_' + S.day, '0'));
     currentRiddleIndex  = answeredCount;
-    sessionAnswers      = safeParse(localStorage.getItem('genazo_session_answers_' + S.day), {});
+    sessionAnswers      = safeParse(getStorage('genazo_session_answers_' + S.day), {});
 
     console.log('[loadDailyRiddle] resuming at index:', currentRiddleIndex);
 
@@ -691,8 +675,8 @@ function submitAnswer() {
   const points       = isCorrect ? 100 : 0;
 
   sessionAnswers[riddleNumber] = { answer: S.selectedAnswer, correct: isCorrect, points };
-  localStorage.setItem('genazo_answered_count_' + S.day, riddleNumber.toString());
-  localStorage.setItem('genazo_session_answers_' + S.day, JSON.stringify(sessionAnswers));
+  setStorage('genazo_answered_count_' + S.day, riddleNumber.toString());
+  setStorage('genazo_session_answers_' + S.day, JSON.stringify(sessionAnswers));
 
   showRiddleResult(isCorrect, points, S.selectedAnswer, riddle, riddleNumber);
   S.isSubmitting = false;
@@ -934,12 +918,12 @@ function showFinalScore() {
     new_streak: newStreak, streak_bonus: streakBonus,
     total_correct: correct, total_riddles: 5,
   };
-  localStorage.setItem('genazo_last_answered_day', String(S.day));
-  localStorage.setItem('genazo_last_result', JSON.stringify(finalResult));
+  setStorage('genazo_last_answered_day', String(S.day));
+  setStorage('genazo_last_result', JSON.stringify(finalResult));
 
   const history = getStreakHistory();
   history.push({ day: S.day, correct: correct > 0 });
-  localStorage.setItem('genazo_streak_history', JSON.stringify(history.slice(-30)));
+  setStorage('genazo_streak_history', JSON.stringify(history.slice(-30)));
 
   updateLeaderboardOptimistic(S.username, totalWithBonus);
   updateAllStatDisplays();
@@ -1049,7 +1033,7 @@ function showOptimisticCommunity(username, isCorrect) {
 }
 
 function updateLeaderboardOptimistic(username, points) {
-  const cached   = JSON.parse(localStorage.getItem('genazo_lb_alltime') || '[]');
+  const cached   = JSON.parse(getStorage('genazo_lb_alltime', '[]'));
   const existing = cached.find(p => p.username === username);
   if (existing) {
     existing.total_points = (existing.total_points || 0) + points;
@@ -1057,8 +1041,8 @@ function updateLeaderboardOptimistic(username, points) {
     cached.unshift({ username, total_points: points, streak: 1, days_answered: 1 });
   }
   cached.sort((a, b) => (b.total_points || 0) - (a.total_points || 0));
-  localStorage.setItem('genazo_lb_alltime', JSON.stringify(cached));
-  localStorage.setItem('genazo_lb_time_alltime', Date.now().toString());
+  setStorage('genazo_lb_alltime', JSON.stringify(cached));
+  setStorage('genazo_lb_time_alltime', Date.now().toString());
 }
 
 // ── LEADERBOARD ───────────────────────────────────────────────────────────
@@ -1183,7 +1167,7 @@ async function loadPlayerData() {
 }
 
 // ── STREAK HISTORY ────────────────────────────────────────────────────────
-function getStreakHistory() { return safeParse(localStorage.getItem('genazo_streak_history'), []); }
+function getStreakHistory() { return safeParse(getStorage('genazo_streak_history'), []); }
 
 function buildStreakDots(history) {
   const dots = [];
@@ -1202,7 +1186,7 @@ async function shareResult() {
   const correct = Object.values(sessionAnswers).filter(a => a.correct).length;
   const total   = allRiddles.length || 5;
   const points  = Object.values(sessionAnswers).reduce((sum, a) => sum + (a.points || 0), 0);
-  const streak  = parseInt(localStorage.getItem('genazo_streak') || '0');
+  const streak  = parseInt(getStorage('genazo_streak', '0'));
 
   try {
     const canvas = document.createElement('canvas');
