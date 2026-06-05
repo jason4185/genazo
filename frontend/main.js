@@ -530,7 +530,14 @@ async function loadDailyRiddle() {
     } else {
       renderNoRiddle(body); return;
     }
-    S.day          = parsed.day;
+    const parsedDay = parsed.day;
+    if (S.day !== null && S.day !== parsedDay) {
+      console.log('[loadDailyRiddle] Day changed', S.day, '→', parsedDay, '. Resetting state.');
+      sessionAnswers     = {};
+      currentRiddleIndex = 0;
+      isWaitingForRiddles = false;
+    }
+    S.day          = parsedDay;
     S.totalAnswers = parsed.total_answers || 0;
     S.riddle       = allRiddles[0] || null;
 
@@ -665,6 +672,7 @@ function renderAnswered(container, result) {
 
 // ── ANSWER SELECTION ──────────────────────────────────────────────────────
 function selectAnswer(letter) {
+  console.log('[select] letter:', letter, 'riddle:', currentRiddleIndex + 1);
   if (S.isSubmitting) return;
   S.selectedAnswer = letter;
   ['A','B','C','D'].forEach(l => {
@@ -677,6 +685,10 @@ function selectAnswer(letter) {
 
 // ── SUBMIT ────────────────────────────────────────────────────────────────
 function submitAnswer() {
+  console.log('[submit] called');
+  console.log('[submit] selectedAnswer:', S.selectedAnswer);
+  console.log('[submit] riddleNumber:', currentRiddleIndex + 1);
+  console.log('[submit] sessionAnswers:', JSON.stringify(sessionAnswers));
   if (!S.selectedAnswer || S.isSubmitting) return;
 
   const riddle       = allRiddles[currentRiddleIndex];
@@ -1405,6 +1417,13 @@ function clearStaleData() {
     keysToRemove.forEach(key => localStorage.removeItem(key));
     localStorage.setItem('genazo_contract_address', currentContract);
     console.log('[init] Cleared ' + keysToRemove.length + ' stale keys');
+
+    // Reset in-memory state
+    sessionAnswers     = {};
+    allRiddles         = [];
+    currentRiddleIndex = 0;
+    S.day              = null;
+    isWaitingForRiddles = false;
   }
 }
 
