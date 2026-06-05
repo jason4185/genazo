@@ -1117,23 +1117,101 @@ function buildStreakDots(history) {
 }
 
 // ── SHARE ─────────────────────────────────────────────────────────────────
-function shareResult() {
+async function shareResult() {
   const day     = S.day || 1;
-  const total   = Object.values(sessionAnswers).reduce((sum, a) => sum + a.points, 0);
   const correct = Object.values(sessionAnswers).filter(a => a.correct).length;
-  const count   = allRiddles.length || 5;
+  const total   = allRiddles.length || 5;
+  const points  = Object.values(sessionAnswers).reduce((sum, a) => sum + (a.points || 0), 0);
   const streak  = parseInt(localStorage.getItem('genazo_streak') || '0');
-  const result  = safeParse(localStorage.getItem('genazo_last_result'));
-  const pts     = total || result?.points || 0;
-  const shareText = 'GENAZO Day ' + day + '\n' +
-    correct + ' / ' + count + ' correct · +' + pts + ' pts\n' +
-    (streak >= 3 ? streak + ' day streak\n' : '') +
-    'Play at https://genazo.xyz';
-  const twitterUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText);
-  if (navigator.share) {
-    navigator.share({ title: 'Genazo Day ' + day, text: shareText }).catch(() => window.open(twitterUrl, '_blank'));
-  } else {
-    window.open(twitterUrl, '_blank');
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080; canvas.height = 1080;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#07070B';
+    ctx.fillRect(0, 0, 1080, 1080);
+
+    const glow = ctx.createRadialGradient(540, 200, 0, 540, 200, 400);
+    glow.addColorStop(0, 'rgba(124,58,237,0.3)');
+    glow.addColorStop(1, 'rgba(124,58,237,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, 1080, 1080);
+
+    ctx.strokeStyle = 'rgba(124,58,237,0.05)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < 1080; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1080); ctx.stroke(); }
+    for (let y = 0; y < 1080; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1080, y); ctx.stroke(); }
+
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = '/logo.jpg'; });
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(440, 160, 200, 200, 40);
+      ctx.clip();
+      ctx.drawImage(img, 440, 160, 200, 200);
+      ctx.restore();
+    } catch(e) {
+      ctx.font = 'bold 120px serif'; ctx.fillStyle = '#9D7FEA'; ctx.textAlign = 'center'; ctx.fillText('Ψ', 540, 320);
+    }
+
+    ctx.font = 'bold 72px Arial'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#F0EEF8'; ctx.fillText('GEN', 460, 430);
+    ctx.fillStyle = '#9D7FEA'; ctx.fillText('AZO', 620, 430);
+
+    ctx.font = '600 32px Arial'; ctx.fillStyle = '#5A5878'; ctx.textAlign = 'center';
+    ctx.fillText('DAY ' + day, 540, 510);
+
+    ctx.strokeStyle = 'rgba(124,58,237,0.3)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(340, 540); ctx.lineTo(740, 540); ctx.stroke();
+
+    ctx.font = 'bold 140px Arial'; ctx.fillStyle = '#F0EEF8'; ctx.textAlign = 'center';
+    ctx.fillText(points + ' pts', 540, 680);
+
+    ctx.font = '500 40px Arial'; ctx.fillStyle = '#5A5878'; ctx.textAlign = 'center';
+    ctx.fillText(correct + ' / ' + total + ' correct', 540, 740);
+
+    const dotSize = 28, dotGap = 20;
+    const totalWidth = total * dotSize + (total - 1) * dotGap;
+    const startX = (1080 - totalWidth) / 2;
+    for (let i = 1; i <= total; i++) {
+      const ans = sessionAnswers[i];
+      ctx.fillStyle = !ans ? '#1A1828' : ans.correct ? '#34D399' : '#F87171';
+      ctx.beginPath();
+      ctx.arc(startX + (i - 1) * (dotSize + dotGap) + dotSize / 2, 820, dotSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (streak > 0) {
+      ctx.font = '600 36px Arial'; ctx.fillStyle = '#F59E0B'; ctx.textAlign = 'center';
+      ctx.fillText('🔥 ' + streak + ' day streak', 540, 900);
+    }
+
+    ctx.font = '500 32px Arial'; ctx.fillStyle = '#3A3858'; ctx.textAlign = 'center';
+    ctx.fillText('genazo.xyz', 540, 980);
+
+    canvas.toBlob(async (blob) => {
+      const file = new File([blob], 'genazo-day-' + day + '.png', { type: 'image/png' });
+      const shareText = 'GENAZO Day ' + day + ' — ' + points + ' pts · ' + correct + '/' + total + ' correct' +
+        (streak >= 3 ? ' · 🔥 ' + streak + ' day streak' : '') + '\n\nPlay at genazo.xyz';
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: shareText });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'genazo-day-' + day + '.png'; a.click();
+        URL.revokeObjectURL(url);
+        setTimeout(() => window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText), '_blank'), 500);
+      }
+    }, 'image/png');
+
+  } catch(err) {
+    console.error('[share]', err);
+    const text = 'GENAZO Day ' + day + ' — ' + points + ' pts\nPlay at genazo.xyz';
+    window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text), '_blank');
   }
 }
 
