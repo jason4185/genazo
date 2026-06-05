@@ -545,7 +545,15 @@ async function loadDailyRiddle() {
 
     console.log('[loadDailyRiddle] resuming at index:', currentRiddleIndex);
 
-    if (currentRiddleIndex >= allRiddles.length) { await showDashboard(); return; }
+    if (currentRiddleIndex >= allRiddles.length) {
+      const totalAnswered = Object.keys(sessionAnswers).length;
+      if (totalAnswered >= 5) {
+        showFinalScore();
+      } else {
+        showWaitingForRiddles();
+      }
+      return;
+    }
 
     showTodayRiddle();
 
@@ -666,14 +674,20 @@ function selectAnswer(letter) {
 // ── SUBMIT ────────────────────────────────────────────────────────────────
 function submitAnswer() {
   if (!S.selectedAnswer || S.isSubmitting) return;
-  S.isSubmitting = true;
 
   const riddle       = allRiddles[currentRiddleIndex];
   const riddleNumber = currentRiddleIndex + 1;
-  const correct      = riddle.correct.toUpperCase();
-  const isCorrect    = S.selectedAnswer.toUpperCase() === correct;
-  const points       = isCorrect ? 100 : 0;
 
+  // Guard: prevent re-answering the same riddle
+  if (sessionAnswers[riddleNumber]) return;
+
+  S.isSubmitting = true;
+
+  const correct   = riddle.correct.toUpperCase();
+  const isCorrect = S.selectedAnswer.toUpperCase() === correct;
+  const points    = isCorrect ? 100 : 0;
+
+  // Save immediately to localStorage before blockchain confirmation
   sessionAnswers[riddleNumber] = { answer: S.selectedAnswer, correct: isCorrect, points };
   setStorage('genazo_answered_count_' + S.day, riddleNumber.toString());
   setStorage('genazo_session_answers_' + S.day, JSON.stringify(sessionAnswers));
@@ -681,6 +695,7 @@ function submitAnswer() {
   showRiddleResult(isCorrect, points, S.selectedAnswer, riddle, riddleNumber);
   S.isSubmitting = false;
 
+  // Submit to blockchain in background
   callWrite('submit_daily_answer', [S.sessionId, S.username, S.selectedAnswer, riddleNumber])
     .then(hash => {
       console.log('[submit] confirmed:', hash);
