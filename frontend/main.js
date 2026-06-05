@@ -246,26 +246,33 @@ async function handleSignUp() {
   }
 
   const sid = await generateSessionId(username, password);
+  console.log('[signup] called');
+  console.log('[signup] username:', username);
+  console.log('[signup] password length:', password.length);
+  console.log('[signup] sid:', sid.slice(0, 10) + '…');
+
   showLoading('Creating your account…');
 
   try {
-    const raw    = await callWrite('register_player', [sid, username]);
-    const parsed = typeof raw === 'string' ? safeParse(raw) : raw;
+    // callWrite returns a tx hash, not the contract return value.
+    // Verify registration outcome by reading the player back.
+    await callWrite('register_player', [sid, username]);
 
-    if (parsed?.error === 'username_taken') {
-      hideLoading();
-      showAuthError(errorEl, 'This username is already taken. Choose a different one.');
-      return;
-    }
-    if (parsed?.error === 'already_registered') {
+    const checkRaw    = await viewCall('get_player', [sid]);
+    const checkParsed = typeof checkRaw === 'string' ? safeParse(checkRaw) : checkRaw;
+
+    if (checkParsed?.found) {
+      console.log('[signup] player found on-chain → success');
       saveSession(sid, username);
       hideLoading();
       enterApp();
       return;
     }
-    saveSession(sid, username);
+
+    // Player not found after registration = username was taken by another session
+    console.log('[signup] player not found → username taken');
     hideLoading();
-    enterApp();
+    showAuthError(errorEl, 'This username is already taken. Choose a different one.');
   } catch(err) {
     hideLoading();
     showAuthError(errorEl, 'Connection error. Please try again.');
@@ -283,6 +290,10 @@ async function handleSignIn() {
   }
 
   const sid = await generateSessionId(username, password);
+  console.log('[signin] called');
+  console.log('[signin] username:', username);
+  console.log('[signin] sid:', sid.slice(0, 10) + '…');
+
   showLoading('Signing in…');
 
   try {
