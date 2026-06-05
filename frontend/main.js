@@ -515,7 +515,35 @@ function showTodayRiddle() {
     return;
   }
 
-  if (allRiddles.length && currentRiddleIndex < allRiddles.length) {
+  const answeredCount  = Object.keys(sessionAnswers).length;
+  const availableCount = allRiddles.length;
+
+  // All 5 answered — show completion
+  if (answeredCount >= 5) {
+    wrap.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;position:relative;z-index:2">
+        <div style="font-size:40px;margin-bottom:16px">✅</div>
+        <div style="font-size:16px;font-weight:700;color:#E8E6F4;margin-bottom:8px">All done for today!</div>
+        <div style="font-size:13px;color:#5A5878;line-height:1.7">Come back tomorrow for new riddles.</div>
+      </div>`;
+    return;
+  }
+
+  // Answered all available but more coming
+  if (answeredCount >= availableCount && availableCount > 0) {
+    wrap.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;position:relative;z-index:2">
+        <div style="font-size:40px;margin-bottom:16px">⏳</div>
+        <div style="font-size:16px;font-weight:700;color:#E8E6F4;margin-bottom:8px">${answeredCount} of 5 answered</div>
+        <div style="font-size:13px;color:#5A5878;line-height:1.7">More riddles still being generated.<br/>Check back in a few minutes.</div>
+        <div style="font-family:'Space Mono',monospace;font-size:10px;color:#3A3858;letter-spacing:2px;margin-top:16px">POWERED BY OPTIMISTIC DEMOCRACY</div>
+      </div>`;
+    return;
+  }
+
+  // Show next unanswered riddle
+  currentRiddleIndex = answeredCount;
+  if (allRiddles[currentRiddleIndex]) {
     S.riddle = allRiddles[currentRiddleIndex];
     renderRiddle(wrap);
   } else {
