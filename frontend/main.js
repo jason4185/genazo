@@ -20,6 +20,15 @@ function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+async function generateSessionId(username, password) {
+  const input = username.toLowerCase().trim() + ':' + password;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // ── STATE ─────────────────────────────────────────────────────────────────
 const S = {
   sessionId: null, username: null,
@@ -140,30 +149,40 @@ function showScreen(id) {
   if (id === 'screen-home') loadDailyRiddle();
 }
 
-// ── LANDING ───────────────────────────────────────────────────────────────
-function onNicknameInput(input) {
-  const val   = input.value.trim();
-  const valid = /^[a-zA-Z0-9_]{3,20}$/.test(val);
-  document.getElementById('nick-error').classList.toggle('hidden', val.length < 3 || valid);
-  document.getElementById('btn-play').disabled = !valid;
+// ── AUTH ──────────────────────────────────────────────────────────────────
+function isOldSession(sid) {
+  return sid && !sid.startsWith('0x');
 }
 
-function enterGame() {
-  const input    = document.getElementById('inp-nickname');
-  const username = input.value.trim();
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) return;
-  S.username = username;
-  const stored = localStorage.getItem('genazo_session');
-  let restoredId = null;
-  if (stored) {
-    const d = safeParse(stored);
-    if (d?.username === username && d?.sessionId) restoredId = d.sessionId;
-  }
-  S.sessionId = restoredId || (username + '_' + Math.random().toString(36).slice(2, 8));
-  localStorage.setItem('genazo_session', JSON.stringify({ sessionId: S.sessionId, username }));
-  localStorage.setItem('genazo_nick', username);
-  document.getElementById('home-nick').textContent = username;
-  registerPlayerBackground();
+function saveSession(sid, username) {
+  localStorage.setItem('genazo_session', sid);
+  localStorage.setItem('genazo_nickname', username);
+  S.sessionId = sid;
+  S.username  = username;
+}
+
+function showAuthError(el, message) {
+  if (!el) return;
+  el.textContent   = message;
+  el.style.display = 'block';
+  el.style.color   = '#F87171';
+  el.style.fontSize = '13px';
+  el.style.marginTop = '8px';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function showLoading(message) {
+  const btn = document.querySelector('.screen.active .cta');
+  if (btn) { btn.disabled = true; btn.dataset.originalText = btn.textContent; btn.textContent = message || 'Loading...'; }
+}
+
+function hideLoading() {
+  const btn = document.querySelector('.screen.active .cta[disabled]');
+  if (btn && btn.dataset.originalText) { btn.disabled = false; btn.textContent = btn.dataset.originalText; }
+}
+
+function enterApp() {
+  clearStaleData();
   if (!localStorage.getItem('genazo_onboarded')) {
     showScreen('screen-onboarding');
   } else {
@@ -171,13 +190,140 @@ function enterGame() {
   }
 }
 
+function checkExistingSession() {
+  const sid  = localStorage.getItem('genazo_session');
+  const name = localStorage.getItem('genazo_nickname') || localStorage.getItem('genazo_nick');
+
+  if (sid && isOldSession(sid)) {
+    console.log('[auth] Old session detected. Showing landing.');
+    localStorage.removeItem('genazo_session');
+    localStorage.removeItem('genazo_nickname');
+    const banner = document.getElementById('migration-banner');
+    if (banner) banner.style.display = 'block';
+    showScreen('screen-landing');
+    return false;
+  }
+
+  if (sid && name) {
+    S.sessionId = sid;
+    S.username  = name;
+    enterApp();
+    return true;
+  }
+
+  showScreen('screen-landing');
+  return false;
+}
+
+function onSignupUsernameInput(input) {
+  const val = input.value;
+  const countEl = document.getElementById('signup-char-count');
+  if (countEl) countEl.textContent = val.length + '/20';
+  const btn = document.getElementById('signup-submit');
+  if (btn) btn.disabled = val.trim().length < 3;
+}
+
+async function handleSignUp() {
+  const username = document.getElementById('signup-username').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const confirm  = document.getElementById('signup-confirm').value;
+  const errorEl  = document.getElementById('signup-error');
+
+  if (username.length < 3 || username.length > 20) {
+    showAuthError(errorEl, 'Username must be 3–20 characters.'); return;
+  }
+  if (/\s/.test(username)) {
+    showAuthError(errorEl, 'Username cannot contain spaces.'); return;
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    showAuthError(errorEl, 'Letters, numbers and underscores only.'); return;
+  }
+  if (password.length < 6) {
+    showAuthError(errorEl, 'Password must be at least 6 characters.'); return;
+  }
+  if (password !== confirm) {
+    showAuthError(errorEl, 'Passwords do not match.'); return;
+  }
+
+  const sid = await generateSessionId(username, password);
+  showLoading('Creating your account…');
+
+  try {
+    const raw    = await callWrite('register_player', [sid, username]);
+    const parsed = typeof raw === 'string' ? safeParse(raw) : raw;
+
+    if (parsed?.error === 'username_taken') {
+      hideLoading();
+      showAuthError(errorEl, 'This username is already taken. Choose a different one.');
+      return;
+    }
+    if (parsed?.error === 'already_registered') {
+      saveSession(sid, username);
+      hideLoading();
+      enterApp();
+      return;
+    }
+    saveSession(sid, username);
+    hideLoading();
+    enterApp();
+  } catch(err) {
+    hideLoading();
+    showAuthError(errorEl, 'Connection error. Please try again.');
+    console.error('[signup]', err);
+  }
+}
+
+async function handleSignIn() {
+  const username = document.getElementById('signin-username').value.trim();
+  const password = document.getElementById('signin-password').value;
+  const errorEl  = document.getElementById('signin-error');
+
+  if (!username || !password) {
+    showAuthError(errorEl, 'Please enter your username and password.'); return;
+  }
+
+  const sid = await generateSessionId(username, password);
+  showLoading('Signing in…');
+
+  try {
+    const raw    = await viewCall('get_player', [sid]);
+    const parsed = typeof raw === 'string' ? safeParse(raw) : raw;
+
+    if (parsed?.found) {
+      saveSession(sid, username);
+      hideLoading();
+      enterApp();
+      return;
+    }
+
+    hideLoading();
+    showAuthError(errorEl, 'Account not found. Check your username and password carefully.');
+  } catch(err) {
+    hideLoading();
+    showAuthError(errorEl, 'Connection error. Please try again.');
+    console.error('[signin]', err);
+  }
+}
+
+function toggleForgotPassword() {
+  const panel = document.getElementById('forgot-panel');
+  if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function signOut() {
+  if (confirm('Sign out? You will need your username and password to sign back in.')) {
+    localStorage.removeItem('genazo_session');
+    localStorage.removeItem('genazo_nickname');
+    localStorage.removeItem('genazo_onboarded');
+    S.sessionId = null;
+    S.username  = null;
+    showScreen('screen-landing');
+  }
+}
+
 function completeOnboarding() {
   localStorage.setItem('genazo_onboarded', '1');
   showScreen('screen-home');
-}
-
-async function registerPlayerBackground() {
-  try { await callWrite('register_player', [S.sessionId, S.username]); } catch {}
 }
 
 // ── COUNTDOWN ─────────────────────────────────────────────────────────────
@@ -341,7 +487,7 @@ function setHomeView(view) {
 
 // ── HOME ──────────────────────────────────────────────────────────────────
 async function loadDailyRiddle() {
-  document.getElementById('home-nick').textContent = S.username || localStorage.getItem('genazo_nick') || '';
+  document.getElementById('home-nick').textContent = S.username || localStorage.getItem('genazo_nickname') || localStorage.getItem('genazo_nick') || '';
   updateAllStatDisplays();
   updateRankDisplay();
 
@@ -1040,22 +1186,8 @@ function clearStaleData() {
 
 async function init() {
   clearStaleData();
-
   document.getElementById('nav-home')?.addEventListener('click', () => showScreen('screen-home'));
-
-  const session = localStorage.getItem('genazo_session');
-  if (session) {
-    const d = safeParse(session);
-    if (d?.sessionId && d?.username) {
-      S.sessionId = d.sessionId; S.username = d.username;
-      const inp = document.getElementById('inp-nickname');
-      if (inp) inp.value = d.username;
-      const btn = document.getElementById('btn-play');
-      if (btn) btn.disabled = false;
-      document.getElementById('home-nick').textContent = d.username;
-      showScreen('screen-home');
-    }
-  }
+  checkExistingSession();
   updateAllAvatars();
 }
 
@@ -1063,7 +1195,9 @@ init();
 
 // ── EXPORTS ───────────────────────────────────────────────────────────────
 Object.assign(window, {
-  onNicknameInput, enterGame, selectAnswer, submitAnswer,
+  handleSignUp, handleSignIn, onSignupUsernameInput,
+  toggleForgotPassword, signOut, completeOnboarding,
+  selectAnswer, submitAnswer,
   loadDailyRiddle, loadHomeScreen: loadDailyRiddle,
   showLeaderboard, loadLeaderboard, showProfile, shareResult,
   showResultScreen, showRiddleResult, showLeaderboardData, showLeaderboardEmpty,
@@ -1071,7 +1205,7 @@ Object.assign(window, {
   showOptimisticCommunity, updateLeaderboardOptimistic,
   updateDashboardStats, loadDashboardActivity,
   setHomeView, showDashboard, showTodayRiddle,
-  completeOnboarding, setAvatarColor, updateAllAvatars,
+  setAvatarColor, updateAllAvatars,
   goToNextRiddle, showFinalScore, showTxHash, updateProgressDots,
   checkForNewRiddles,
 });

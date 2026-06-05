@@ -32,15 +32,82 @@
       <h1 class="landing-title">One riddle a day.<br>Real competition.</h1>
       <p class="landing-sub">Build streaks. Earn points. Climb the global leaderboard.</p>
     </div>
+    <div id="migration-banner" style="display:none;padding:10px 14px;border-radius:8px;background:#0F0B1F;border:1px solid #2D1F50;font-size:12px;color:#9D7FEA;line-height:1.5;margin-bottom:12px;text-align:center">
+      Welcome back! We upgraded the login system.<br>Please create a new account to continue.
+    </div>
     <div class="landing-form">
-      <input id="inp-nickname" type="text" class="form-input" placeholder="Choose a nickname…" maxlength="20" autocomplete="off" spellcheck="false" oninput="onNicknameInput(this)" onkeydown="if(event.key==='Enter')enterGame()"/>
-      <div id="nick-error" class="form-error hidden">3–20 chars, letters &amp; numbers only</div>
-      <button id="btn-play" class="btn btn-primary btn-full" onclick="enterGame()" disabled>Enter the Arena</button>
+      <button class="btn btn-primary btn-full cta" onclick="showScreen('screen-signup')">Create Account</button>
+      <button class="btn btn-full cta" style="margin-top:10px;background:transparent;border:1px solid #2D2040;color:#9D7FEA;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;padding:14px;border-radius:12px;cursor:pointer" onclick="showScreen('screen-signin')">Sign In</button>
     </div>
     <div class="landing-preview">
       <div class="preview-label">Today's top players</div>
       <div id="landing-top3" class="preview-list">
         <div class="preview-empty">Play to see the leaderboard</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sign Up ───────────────────────────────────────────────────────────── -->
+<div id="screen-signup" class="screen">
+  <div class="grid-bg"></div>
+  <div class="landing-inner">
+    <div class="landing-glow"></div>
+    <div style="width:100%;max-width:360px;display:flex;flex-direction:column">
+      <button onclick="showScreen('screen-landing')" style="background:none;border:none;color:#5A5878;cursor:pointer;font-size:22px;align-self:flex-start;padding:0;margin-bottom:24px;line-height:1">
+        <i class="ti ti-arrow-left"></i>
+      </button>
+      <div style="font-size:22px;font-weight:700;color:#E8E6F4;margin-bottom:4px;font-family:'Space Grotesk',sans-serif">Create Account</div>
+      <div style="font-size:13px;color:#5A5878;margin-bottom:24px">First come, first served on usernames.</div>
+
+      <div style="position:relative;margin-bottom:12px">
+        <input id="signup-username" type="text" class="form-input" placeholder="Choose a username" maxlength="20" autocomplete="off" spellcheck="false" oninput="onSignupUsernameInput(this)" style="padding-right:48px"/>
+        <span id="signup-char-count" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11px;color:#3A3858;font-family:'Space Mono',monospace">0/20</span>
+      </div>
+      <input id="signup-password" type="password" class="form-input" placeholder="Create a password" style="margin-bottom:12px"/>
+      <input id="signup-confirm" type="password" class="form-input" placeholder="Confirm your password" style="margin-bottom:16px"/>
+
+      <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:8px;background:#1A0F0A;border:1px solid #2A1A0A;margin-bottom:20px">
+        <i class="ti ti-alert-triangle" style="color:#F59E0B;font-size:16px;flex-shrink:0;margin-top:1px"></i>
+        <div style="font-size:12px;color:#F59E0B;line-height:1.5">Save your password somewhere safe. It cannot be recovered if lost.</div>
+      </div>
+
+      <button id="signup-submit" class="btn btn-primary btn-full cta" onclick="handleSignUp()" disabled>Create Account</button>
+      <div id="signup-error" style="display:none;margin-top:8px"></div>
+      <div style="text-align:center;margin-top:16px;font-size:13px;color:#5A5878">
+        Already have an account? <span onclick="showScreen('screen-signin')" style="color:#9D7FEA;cursor:pointer;font-weight:600">Sign In →</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sign In ───────────────────────────────────────────────────────────── -->
+<div id="screen-signin" class="screen">
+  <div class="grid-bg"></div>
+  <div class="landing-inner">
+    <div class="landing-glow"></div>
+    <div style="width:100%;max-width:360px;display:flex;flex-direction:column">
+      <button onclick="showScreen('screen-landing')" style="background:none;border:none;color:#5A5878;cursor:pointer;font-size:22px;align-self:flex-start;padding:0;margin-bottom:24px;line-height:1">
+        <i class="ti ti-arrow-left"></i>
+      </button>
+      <div style="font-size:22px;font-weight:700;color:#E8E6F4;margin-bottom:4px;font-family:'Space Grotesk',sans-serif">Welcome Back</div>
+      <div style="font-size:13px;color:#5A5878;margin-bottom:24px">Enter your details to continue.</div>
+
+      <input id="signin-username" type="text" class="form-input" placeholder="Your username" autocomplete="off" style="margin-bottom:12px"/>
+      <input id="signin-password" type="password" class="form-input" placeholder="Your password" style="margin-bottom:20px" onkeydown="if(event.key==='Enter')handleSignIn()"/>
+
+      <button id="signin-submit" class="btn btn-primary btn-full cta" onclick="handleSignIn()">Sign In</button>
+      <div id="signin-error" style="display:none;margin-top:8px"></div>
+      <div style="text-align:center;margin-top:16px;font-size:13px;color:#5A5878">
+        New here? <span onclick="showScreen('screen-signup')" style="color:#9D7FEA;cursor:pointer;font-weight:600">Create an account →</span>
+      </div>
+
+      <div style="height:1px;background:#141220;margin:24px 0"></div>
+
+      <div style="font-size:13px;color:#5A5878;text-align:center;cursor:pointer" onclick="toggleForgotPassword()">Forgot your password?</div>
+      <div id="forgot-panel" style="display:none;margin-top:12px;padding:14px;border-radius:10px;background:#0A0914;border:1px solid #141220">
+        <div style="font-size:13px;color:#5A5878;line-height:1.6;margin-bottom:12px;text-align:center">Passwords cannot be recovered. If you forgot yours create a new account with a different username.</div>
+        <button onclick="showScreen('screen-signup')" style="width:100%;padding:11px;border-radius:8px;border:1px solid #2D1F50;background:transparent;color:#9D7FEA;font-size:13px;font-weight:600;font-family:'Space Grotesk',sans-serif;cursor:pointer">Create New Account →</button>
       </div>
     </div>
   </div>
@@ -216,6 +283,7 @@
           </div>
         </div>
       </div>
+      <button onclick="signOut()" style="width:100%;padding:13px;border-radius:10px;border:1px solid #2D2040;background:transparent;color:#4A4862;font-size:13px;font-weight:600;font-family:'Space Grotesk',sans-serif;cursor:pointer;margin-top:8px">Sign Out</button>
     </div>
   </div>
 </div>
