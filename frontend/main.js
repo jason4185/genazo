@@ -40,6 +40,7 @@ const S = {
 let currentRiddleIndex = 0;
 let allRiddles = [];
 let sessionAnswers = {};
+let isWaitingForRiddles = false;
 
 // ── SESSION-SCOPED STORAGE ────────────────────────────────────────────────
 function storageKey(key) {
@@ -468,6 +469,7 @@ async function showDashboard() {
 }
 
 function showTodayRiddle() {
+  isWaitingForRiddles = false;
   S.homeView = 1;
   const body = document.getElementById('home-body');
   if (!body) return;
@@ -497,6 +499,8 @@ function setHomeView(view) {
 
 // ── HOME ──────────────────────────────────────────────────────────────────
 async function loadDailyRiddle() {
+  if (isWaitingForRiddles) { showDashboard(); return; }
+
   document.getElementById('home-nick').textContent = S.username || localStorage.getItem('genazo_nickname') || localStorage.getItem('genazo_nick') || '';
   updateAllStatDisplays();
   updateRankDisplay();
@@ -868,6 +872,7 @@ function goToNextRiddle() {
 }
 
 function showWaitingForRiddles() {
+  isWaitingForRiddles = true;
   const answered  = Object.keys(sessionAnswers).length;
   const remaining = 5 - answered;
 
@@ -1320,6 +1325,7 @@ function updateAllAvatars() {
 }
 
 function clearStaleData() {
+  isWaitingForRiddles = false;
   const storedContract = localStorage.getItem('genazo_contract_address');
   const currentContract = CONFIG.CONTRACT_ADDRESS;
 
