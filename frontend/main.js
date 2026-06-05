@@ -552,7 +552,22 @@ async function loadDailyRiddle() {
     // Restore progress if mid-day
     const answeredCount = parseInt(getStorage('genazo_answered_count_' + S.day, '0'));
     currentRiddleIndex  = answeredCount;
-    sessionAnswers      = safeParse(getStorage('genazo_session_answers_' + S.day), {});
+    sessionAnswers = {};
+    const savedAnswers = getStorage('genazo_session_answers_' + S.day, null);
+    if (savedAnswers) {
+      try {
+        const restoredParsed = JSON.parse(savedAnswers);
+        const parsedDay = parseInt(S.day);
+        const savedDay  = parseInt(getStorage('genazo_last_answered_day', '0'));
+        if (parsedDay > savedDay) {
+          sessionAnswers = {};
+        } else {
+          sessionAnswers = restoredParsed;
+        }
+      } catch(e) {
+        sessionAnswers = {};
+      }
+    }
 
     console.log('[loadDailyRiddle] resuming at index:', currentRiddleIndex);
 
@@ -672,7 +687,6 @@ function renderAnswered(container, result) {
 
 // ── ANSWER SELECTION ──────────────────────────────────────────────────────
 function selectAnswer(letter) {
-  console.log('[select] letter:', letter, 'riddle:', currentRiddleIndex + 1);
   if (S.isSubmitting) return;
   S.selectedAnswer = letter;
   ['A','B','C','D'].forEach(l => {
@@ -685,10 +699,6 @@ function selectAnswer(letter) {
 
 // ── SUBMIT ────────────────────────────────────────────────────────────────
 function submitAnswer() {
-  console.log('[submit] called');
-  console.log('[submit] selectedAnswer:', S.selectedAnswer);
-  console.log('[submit] riddleNumber:', currentRiddleIndex + 1);
-  console.log('[submit] sessionAnswers:', JSON.stringify(sessionAnswers));
   if (!S.selectedAnswer || S.isSubmitting) return;
 
   const riddle       = allRiddles[currentRiddleIndex];
@@ -1419,14 +1429,14 @@ function clearStaleData() {
     keysToRemove.forEach(key => localStorage.removeItem(key));
     localStorage.setItem('genazo_contract_address', currentContract);
     console.log('[init] Cleared ' + keysToRemove.length + ' stale keys');
-
-    // Reset in-memory state
-    sessionAnswers     = {};
-    allRiddles         = [];
-    currentRiddleIndex = 0;
-    S.day              = null;
-    isWaitingForRiddles = false;
   }
+
+  // Always reset in-memory state
+  sessionAnswers     = {};
+  allRiddles         = [];
+  currentRiddleIndex = 0;
+  S.day              = null;
+  isWaitingForRiddles = false;
 }
 
 async function init() {
