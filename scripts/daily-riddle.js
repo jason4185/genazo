@@ -3,7 +3,7 @@ import { studionet } from 'genlayer-js/chains';
 import { TransactionStatus } from 'genlayer-js/types';
 
 const CONFIG = {
-  CONTRACT_ADDRESS: '0x74ad614C9a588C2D3070ef29700E8296ab092602',
+  CONTRACT_ADDRESS: '0x689Ac29e15e78369Fb0EBe24DB80bc1Aa884ab1A',
   FUNDED_PRIVATE_KEY: process.env.FUNDED_PRIVATE_KEY
     || '0x2afff82ee65dadde965fe25a996799b042ebfd7fae003bcf6cf2205b8dfc4eaa',
   DOCS_URL: 'https://genazo-knowledge.netlify.app',

@@ -4,7 +4,7 @@ import { TransactionStatus } from 'genlayer-js/types';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────
 const CONFIG = {
-  CONTRACT_ADDRESS: '0x74ad614C9a588C2D3070ef29700E8296ab092602',
+  CONTRACT_ADDRESS: '0x689Ac29e15e78369Fb0EBe24DB80bc1Aa884ab1A',
   FUNDED_PRIVATE_KEY: '0x2afff82ee65dadde965fe25a996799b042ebfd7fae003bcf6cf2205b8dfc4eaa',
 };
 
@@ -1457,12 +1457,11 @@ function updateAllAvatars() {
 }
 
 function clearStaleData() {
-  isWaitingForRiddles = false;
   const storedContract = localStorage.getItem('genazo_contract_address');
   const currentContract = CONFIG.CONTRACT_ADDRESS;
 
   if (storedContract !== currentContract) {
-    console.log('[init] Contract changed. Clearing stale data.');
+    console.log('[init] Contract changed. Clearing.');
 
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -1484,15 +1483,16 @@ function clearStaleData() {
     }
 
     keysToRemove.forEach(key => localStorage.removeItem(key));
-    localStorage.setItem('genazo_contract_address', currentContract);
-    console.log('[init] Cleared ' + keysToRemove.length + ' stale keys');
 
-    // Reset in-memory state only when contract changes
+    localStorage.setItem('genazo_contract_address', currentContract);
+
     sessionAnswers     = {};
     allRiddles         = [];
     currentRiddleIndex = 0;
     S.day              = null;
     isWaitingForRiddles = false;
+
+    console.log('[init] Cleared and saved new contract address');
   }
 }
 
