@@ -215,6 +215,8 @@ async function syncPlayerState() {
     const day = await viewCall('get_day_number', []);
     const parsedDay = typeof day === 'string' ? JSON.parse(day) : day;
 
+    S.day = parsedDay;
+
     const answersResult = await viewCall('get_daily_answers', []);
     let answers = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
     if (!Array.isArray(answers)) answers = [];
@@ -224,14 +226,25 @@ async function syncPlayerState() {
       a.username?.toLowerCase() === S.username?.toLowerCase()
     );
 
-    if (myAnswer) {
-      const answered = myAnswer.answered || 0;
-      if (answered > 0) {
+    if (myAnswer && myAnswer.answered > 0) {
+      const answeredCount = myAnswer.answered || 0;
+
+      const statusResult = await viewCall('get_generation_status', []);
+      const isDone = typeof statusResult === 'string' ? JSON.parse(statusResult) : statusResult;
+
+      const riddleResult = await viewCall('get_daily_riddle', []);
+      const riddleParsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
+      const totalRiddles = riddleParsed?.riddles?.length || 0;
+
+      if (isDone && answeredCount >= totalRiddles) {
+        // Fully completed on another device — show already played
         setStorage('genazo_last_answered_day', parsedDay.toString());
+      } else if (answeredCount > 0 && answeredCount < totalRiddles) {
+        // Partially completed on another device — resume from correct riddle
+        setStorage('genazo_answered_count_' + parsedDay, answeredCount.toString());
+        currentRiddleIndex = answeredCount;
       }
     }
-
-    S.day = parsedDay;
   } catch(err) {
     console.error('[sync]', err);
   }
