@@ -1408,7 +1408,9 @@ function clearStaleData() {
         key.startsWith('genazo_points') ||
         key.startsWith('genazo_days') ||
         key.startsWith('genazo_lb') ||
-        key.startsWith('genazo_onboarded')
+        key.startsWith('genazo_onboarded') ||
+        key.startsWith('genazo_session_answers') ||
+        key.startsWith('genazo_waiting_since')
       )) {
         keysToRemove.push(key);
       }
