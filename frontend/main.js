@@ -42,6 +42,7 @@ let currentRiddleIndex = 0;
 let allRiddles = [];
 let sessionAnswers = {};
 let isWaitingForRiddles = false;
+let crossDevicePollInterval = null;
 
 // ── SESSION-SCOPED STORAGE ────────────────────────────────────────────────
 function storageKey(key) {
@@ -753,6 +754,8 @@ function renderNoRiddle(body) {
 function renderRiddle(container) {
   const r = allRiddles[currentRiddleIndex] || S.riddle;
 
+  startCrossDevicePolling();
+
   // Skip malformed or missing riddles
   if (!r || !r.options || typeof r.options !== 'object' ||
       !r.options['A'] || !r.options['B'] || !r.options['C'] || !r.options['D']) {
@@ -846,6 +849,7 @@ function selectAnswer(letter) {
 // ── SUBMIT ────────────────────────────────────────────────────────────────
 function submitAnswer() {
   if (!S.selectedAnswer || S.isSubmitting) return;
+  stopCrossDevicePolling();
 
   const riddle       = allRiddles[currentRiddleIndex];
   const riddleNumber = currentRiddleIndex + 1;
@@ -1080,7 +1084,48 @@ function concludeDay() {
   }
 }
 
+function startCrossDevicePolling() {
+  stopCrossDevicePolling();
+  crossDevicePollInterval = setInterval(async () => {
+    try {
+      const answersResult = await viewCall('get_player_answers', [S.sessionId]);
+      const parsed = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
+
+      const totalAnswered  = parsed?.total_answered || 0;
+      const onChainAnswers = parsed?.answers || {};
+      const localAnswered  = Object.keys(sessionAnswers).length;
+
+      if (totalAnswered > localAnswered) {
+        const restoredAnswers = {};
+        for (const [riddleNum, data] of Object.entries(onChainAnswers)) {
+          restoredAnswers[parseInt(riddleNum)] = {
+            answer:  data.answer  || '',
+            correct: data.correct || false,
+            points:  data.points  || 0,
+            synced:  true,
+          };
+        }
+        sessionAnswers = restoredAnswers;
+        setStorage('genazo_session_answers_' + S.day, JSON.stringify(restoredAnswers));
+        currentRiddleIndex = totalAnswered;
+        await checkAndProceed();
+        stopCrossDevicePolling();
+      }
+    } catch(err) {
+      console.error('[crossDevicePoll]', err);
+    }
+  }, 30000);
+}
+
+function stopCrossDevicePolling() {
+  if (crossDevicePollInterval) {
+    clearInterval(crossDevicePollInterval);
+    crossDevicePollInterval = null;
+  }
+}
+
 function showWaitingForRiddles() {
+  stopCrossDevicePolling();
   isWaitingForRiddles = true;
   const answered  = Object.keys(sessionAnswers).length;
   const remaining = 5 - answered;
@@ -1178,6 +1223,7 @@ function showWaitingForRiddles() {
 }
 
 function showFinalScore() {
+  stopCrossDevicePolling();
   const answered = Object.keys(sessionAnswers).length;
   const correct  = Object.values(sessionAnswers).filter(a => a.correct).length;
   const total    = allRiddles.length;
@@ -1248,6 +1294,7 @@ function showFinalScore() {
 }
 
 async function showAlreadyAnswered() {
+  stopCrossDevicePolling();
   try {
     const answersResult = await viewCall('get_player_answers', [S.sessionId]);
     const answersParsed = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
@@ -1714,7 +1761,7 @@ Object.assign(window, {
   setHomeView, showDashboard, showTodayRiddle,
   setAvatarColor, updateAllAvatars,
   goToNextRiddle, showFinalScore, showWaitingForRiddles, concludeDay, showTxHash, updateProgressDots,
-  checkForNewRiddles, showScreen,
+  checkForNewRiddles, showScreen, startCrossDevicePolling, stopCrossDevicePolling,
 });
 
 document.addEventListener('DOMContentLoaded', function() {
