@@ -36,8 +36,8 @@
       Welcome back! We upgraded the login system.<br>Please create a new account to continue.
     </div>
     <div class="landing-form">
-      <button class="btn btn-primary btn-full cta" onclick="showScreen('screen-signup')">Create Account</button>
-      <button class="btn btn-full cta" style="margin-top:10px;background:transparent;border:1px solid #2D2040;color:#9D7FEA;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;padding:14px;border-radius:12px;cursor:pointer" onclick="showScreen('screen-signin')">Sign In</button>
+      <button id="landing-create-btn" type="button" class="btn btn-primary btn-full cta" onclick="showScreen('screen-signup')">Create Account</button>
+      <button id="landing-signin-btn" type="button" class="btn btn-full cta" style="margin-top:10px;background:transparent;border:1px solid #2D2040;color:#9D7FEA;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;padding:14px;border-radius:12px;cursor:pointer" onclick="showScreen('screen-signin')">Sign In</button>
     </div>
   </div>
 </div>
@@ -66,7 +66,7 @@
         <div style="font-size:12px;color:#F59E0B;line-height:1.5">Save your password somewhere safe. It cannot be recovered if lost.</div>
       </div>
 
-      <button id="signup-submit" class="btn btn-primary btn-full cta" onclick="handleSignUp()" disabled>Create Account</button>
+      <button id="signup-submit-btn" type="button" class="btn btn-primary btn-full cta" onclick="handleSignUp()" disabled>Create Account</button>
       <div id="signup-error" style="display:none;margin-top:8px"></div>
       <div style="text-align:center;margin-top:16px;font-size:13px;color:#5A5878">
         Already have an account? <span onclick="showScreen('screen-signin')" style="color:#9D7FEA;cursor:pointer;font-weight:600">Sign In →</span>
@@ -90,7 +90,7 @@
       <input id="signin-username" type="text" class="form-input" placeholder="Your username" autocomplete="off" style="margin-bottom:12px"/>
       <input id="signin-password" type="password" class="form-input" placeholder="Your password" style="margin-bottom:20px" onkeydown="if(event.key==='Enter')handleSignIn()"/>
 
-      <button id="signin-submit" class="btn btn-primary btn-full cta" onclick="handleSignIn()">Sign In</button>
+      <button id="signin-submit-btn" type="button" class="btn btn-primary btn-full cta" onclick="handleSignIn()">Sign In</button>
       <div id="signin-error" style="display:none;margin-top:8px"></div>
       <div style="text-align:center;margin-top:16px;font-size:13px;color:#5A5878">
         New here? <span onclick="showScreen('screen-signup')" style="color:#9D7FEA;cursor:pointer;font-weight:600">Create an account →</span>

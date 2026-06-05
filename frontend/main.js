@@ -219,7 +219,7 @@ function onSignupUsernameInput(input) {
   const val = input.value;
   const countEl = document.getElementById('signup-char-count');
   if (countEl) countEl.textContent = val.length + '/20';
-  const btn = document.getElementById('signup-submit');
+  const btn = document.getElementById('signup-submit-btn');
   if (btn) btn.disabled = val.trim().length < 3;
 }
 
@@ -1296,5 +1296,12 @@ Object.assign(window, {
   setHomeView, showDashboard, showTodayRiddle,
   setAvatarColor, updateAllAvatars,
   goToNextRiddle, showFinalScore, showTxHash, updateProgressDots,
-  checkForNewRiddles,
+  checkForNewRiddles, showScreen,
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('landing-create-btn')?.addEventListener('click', () => showScreen('screen-signup'));
+  document.getElementById('landing-signin-btn')?.addEventListener('click', () => showScreen('screen-signin'));
+  document.getElementById('signup-submit-btn')?.addEventListener('click', handleSignUp);
+  document.getElementById('signin-submit-btn')?.addEventListener('click', handleSignIn);
 });
