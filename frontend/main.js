@@ -6,6 +6,7 @@ import { TransactionStatus } from 'genlayer-js/types';
 const CONFIG = {
   CONTRACT_ADDRESS: '0xC78Aa0956823927bF264064De7bF2bA1F93Cf6a1',
   FUNDED_PRIVATE_KEY: '0x2afff82ee65dadde965fe25a996799b042ebfd7fae003bcf6cf2205b8dfc4eaa',
+  APP_VERSION: '2.0.0',
 };
 
 const account = createAccount(CONFIG.FUNDED_PRIVATE_KEY);
@@ -1586,9 +1587,14 @@ function updateAllAvatars() {
 
 function clearStaleData() {
   const storedContract = localStorage.getItem('genazo_contract_address');
+  const storedVersion  = localStorage.getItem('genazo_app_version');
   const currentContract = CONFIG.CONTRACT_ADDRESS;
+  const currentVersion  = CONFIG.APP_VERSION;
 
-  if (storedContract !== currentContract) {
+  const contractChanged = storedContract !== currentContract;
+  const versionChanged  = storedVersion  !== currentVersion;
+
+  if (contractChanged || versionChanged) {
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -1596,13 +1602,13 @@ function clearStaleData() {
         key.startsWith('genazo_answered') ||
         key.startsWith('genazo_last_answered') ||
         key.startsWith('genazo_tx_hashes') ||
+        key.startsWith('genazo_session_answers') ||
+        key.startsWith('genazo_waiting_since') ||
         key.startsWith('genazo_streak') ||
         key.startsWith('genazo_points') ||
         key.startsWith('genazo_days') ||
         key.startsWith('genazo_lb') ||
-        key.startsWith('genazo_onboarded') ||
-        key.startsWith('genazo_session_answers') ||
-        key.startsWith('genazo_waiting_since')
+        key.startsWith('genazo_onboarded')
       )) {
         keysToRemove.push(key);
       }
@@ -1611,13 +1617,13 @@ function clearStaleData() {
     keysToRemove.forEach(key => localStorage.removeItem(key));
 
     localStorage.setItem('genazo_contract_address', currentContract);
+    localStorage.setItem('genazo_app_version',      currentVersion);
 
-    sessionAnswers     = {};
-    allRiddles         = [];
-    currentRiddleIndex = 0;
-    S.day              = null;
+    sessionAnswers      = {};
+    allRiddles          = [];
+    currentRiddleIndex  = 0;
+    S.day               = null;
     isWaitingForRiddles = false;
-
   }
 }
 
