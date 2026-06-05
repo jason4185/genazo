@@ -6,7 +6,7 @@ import { TransactionStatus } from 'genlayer-js/types';
 const CONFIG = {
   CONTRACT_ADDRESS: '0xC78Aa0956823927bF264064De7bF2bA1F93Cf6a1',
   FUNDED_PRIVATE_KEY: '0x2afff82ee65dadde965fe25a996799b042ebfd7fae003bcf6cf2205b8dfc4eaa',
-  APP_VERSION: '2.0.1',
+  APP_VERSION: '2.1.0',
 };
 
 const account = createAccount(CONFIG.FUNDED_PRIVATE_KEY);
@@ -255,12 +255,27 @@ async function syncPlayerState() {
 
     setStorage('genazo_session_answers_' + parsedDay, JSON.stringify(restoredAnswers));
     setStorage('genazo_answered_count_'   + parsedDay, totalAnswered.toString());
-    currentRiddleIndex = totalAnswered;
 
     if (player.streak        !== undefined) setStorage('genazo_streak',         player.streak.toString());
     if (player.total_points  !== undefined) setStorage('genazo_points',          player.total_points.toString());
     if (player.days_answered !== undefined) setStorage('genazo_days_answered',   player.days_answered.toString());
     if (player.days_correct  !== undefined) setStorage('genazo_days_correct',    player.days_correct.toString());
+
+    const riddleResult = await viewCall('get_daily_riddle', []);
+    const riddleParsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
+    const totalRiddles = (riddleParsed?.riddles || []).filter(r => r !== null).length;
+
+    if (totalAnswered >= totalRiddles && totalRiddles > 0) {
+      const statusResult = await viewCall('get_generation_status', []);
+      const isDone = typeof statusResult === 'string' ? JSON.parse(statusResult) : statusResult;
+      if (isDone === true) {
+        setStorage('genazo_last_answered_day', parsedDay.toString());
+      } else {
+        isWaitingForRiddles = true;
+      }
+    } else if (totalAnswered > 0) {
+      currentRiddleIndex = totalAnswered;
+    }
 
   } catch(err) {
     console.error('[sync] ERROR:', err);
@@ -646,7 +661,7 @@ function setHomeView(view) {
 
 // ── HOME ──────────────────────────────────────────────────────────────────
 async function loadDailyRiddle() {
-  if (isWaitingForRiddles) { showDashboard(); return; }
+  if (isWaitingForRiddles) { showWaitingForRiddles(); return; }
 
   document.getElementById('home-nick').textContent = S.username || localStorage.getItem('genazo_nickname') || localStorage.getItem('genazo_nick') || '';
   updateAllStatDisplays();
@@ -708,11 +723,7 @@ async function loadDailyRiddle() {
     currentRiddleIndex  = answeredCount;
 
     if (currentRiddleIndex >= allRiddles.length) {
-      if (answeredCount >= 5) {
-        showFinalScore();
-      } else {
-        showWaitingForRiddles();
-      }
+      await checkAndProceed();
       return;
     }
 
@@ -975,12 +986,9 @@ function showRiddleResult(isCorrect, points, answer, riddle, riddleNumber) {
 
   const nextBtn = get('next-btn');
   if (nextBtn) {
-    if (answeredCount >= totalExpected) {
-      nextBtn.textContent = 'See Final Score';
-      nextBtn.onclick     = showFinalScore;
-    } else if (answeredCount >= availableCount) {
-      nextBtn.textContent = 'Wait for More Riddles';
-      nextBtn.onclick     = showWaitingForRiddles;
+    if (answeredCount >= availableCount) {
+      nextBtn.textContent = answeredCount >= totalExpected ? 'See Final Score' : 'Wait for More Riddles';
+      nextBtn.onclick     = checkAndProceed;
     } else {
       nextBtn.textContent = 'Next Riddle →';
       nextBtn.onclick     = goToNextRiddle;
@@ -1027,6 +1035,34 @@ function goToNextRiddle() {
   showScreen('screen-home');
 }
 
+async function checkAndProceed() {
+  const answeredCount  = Object.keys(sessionAnswers).length;
+  const availableCount = allRiddles.length;
+
+  if (answeredCount < availableCount) {
+    currentRiddleIndex = answeredCount;
+    S.riddle = allRiddles[currentRiddleIndex] || null;
+    S.isSubmitting = false;
+    showTodayRiddle();
+    showScreen('screen-home');
+    return;
+  }
+
+  try {
+    const statusResult = await viewCall('get_generation_status', []);
+    const isDone = typeof statusResult === 'string' ? JSON.parse(statusResult) : statusResult;
+
+    if (isDone === true) {
+      showFinalScore();
+    } else {
+      showWaitingForRiddles();
+    }
+  } catch(err) {
+    console.error('[proceed]', err);
+    showWaitingForRiddles();
+  }
+}
+
 function concludeDay() {
   const answered  = Object.keys(sessionAnswers).length;
   const available = allRiddles.length;
@@ -1068,15 +1104,18 @@ function showWaitingForRiddles() {
 
   const interval = setInterval(async () => {
     try {
+      const riddleResult = await viewCall('get_daily_riddle', []);
+      const parsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
+      const newRiddles = (parsed?.riddles || []).map(r => ({ ...r, correct: encodeAnswer(r.correct), _encoded: true }));
+
       const statusResult = await viewCall('get_generation_status', []);
       const isDone = typeof statusResult === 'string' ? JSON.parse(statusResult) : statusResult;
 
-      const riddleResult = await viewCall('get_daily_riddle', []);
-      const parsed       = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
-      const newRiddles   = parsed?.riddles || [];
-      const answeredNow  = Object.keys(sessionAnswers).length;
+      const answeredNow = Object.keys(sessionAnswers).length;
+
       if (newRiddles.length > allRiddles.length) {
         allRiddles = newRiddles;
+
         if (newRiddles.length > answeredNow) {
           clearInterval(interval);
           clearTimeout(giveUpTimer);
@@ -1090,11 +1129,36 @@ function showWaitingForRiddles() {
         }
       }
 
-      if (isDone === true) {
+      if (isDone === true && answeredNow >= allRiddles.length) {
         clearInterval(interval);
         clearTimeout(giveUpTimer);
         isWaitingForRiddles = false;
-        concludeDay();
+        showFinalScore();
+        return;
+      }
+
+      const el = document.getElementById('waiting-message');
+      if (el) {
+        const remaining = allRiddles.length - answeredNow;
+        el.innerHTML = `
+          <div style="text-align:center;padding:40px 20px;position:relative;z-index:2">
+            <div style="font-size:48px;margin-bottom:16px">⏳</div>
+            <div style="font-size:18px;font-weight:700;color:#E8E6F4;margin-bottom:8px">
+              ${answeredNow} of ${isDone ? allRiddles.length : '5'} answered
+            </div>
+            <div style="font-size:14px;color:#5A5878;line-height:1.7;margin-bottom:8px">
+              ${isDone
+                ? 'Generation complete. Calculating score...'
+                : remaining > 0
+                  ? remaining + ' more riddle' + (remaining !== 1 ? 's' : '') + ' still being generated.'
+                  : 'Waiting for generation to complete...'
+              }
+            </div>
+            <div style="font-family:'Space Mono',monospace;font-size:10px;color:#3A3858;letter-spacing:2px;margin-top:16px">
+              POWERED BY OPTIMISTIC DEMOCRACY
+            </div>
+          </div>
+        `;
       }
     } catch(e) {
       console.error('[poll]', e);

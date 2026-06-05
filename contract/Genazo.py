@@ -288,7 +288,11 @@ Return ONLY valid JSON:
         }
         answers[session_id] = player_answers
 
-        all_answered = len(player_answers) >= len(riddles)
+        generation_done = json.loads(self.generation_complete)
+        all_answered = (
+            len(player_answers) >= len(riddles)
+            and generation_done
+        )
         any_correct = any(
             v.get("correct", False)
             for v in player_answers.values()
