@@ -4,7 +4,7 @@ import { TransactionStatus } from 'genlayer-js/types';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────
 const CONFIG = {
-  CONTRACT_ADDRESS: '0x3DF106164A6918CA397492B90ED2D6eB9A8788A2',
+  CONTRACT_ADDRESS: '0xA15B0c3EC7091a691a4023Ca8EFA4701C9296cdd',
   FUNDED_PRIVATE_KEY: '0x2afff82ee65dadde965fe25a996799b042ebfd7fae003bcf6cf2205b8dfc4eaa',
 };
 
