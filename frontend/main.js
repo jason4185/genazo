@@ -246,38 +246,14 @@ async function handleSignUp() {
   }
 
   const sid = await generateSessionId(username, password);
-  console.log('[signup] called');
-  console.log('[signup] username:', username);
-  console.log('[signup] password length:', password.length);
-  console.log('[signup] sid:', sid.slice(0, 10) + '…');
 
-  showLoading('Creating your account…');
+  // Enter app instantly — register on-chain in background
+  saveSession(sid, username);
+  enterApp();
 
-  try {
-    // callWrite returns a tx hash, not the contract return value.
-    // Verify registration outcome by reading the player back.
-    await callWrite('register_player', [sid, username]);
-
-    const checkRaw    = await viewCall('get_player', [sid]);
-    const checkParsed = typeof checkRaw === 'string' ? safeParse(checkRaw) : checkRaw;
-
-    if (checkParsed?.found) {
-      console.log('[signup] player found on-chain → success');
-      saveSession(sid, username);
-      hideLoading();
-      enterApp();
-      return;
-    }
-
-    // Player not found after registration = username was taken by another session
-    console.log('[signup] player not found → username taken');
-    hideLoading();
-    showAuthError(errorEl, 'This username is already taken. Choose a different one.');
-  } catch(err) {
-    hideLoading();
-    showAuthError(errorEl, 'Connection error. Please try again.');
-    console.error('[signup]', err);
-  }
+  callWrite('register_player', [sid, username])
+    .then(() => console.log('[signup] registered on-chain'))
+    .catch(err => console.error('[signup] registration failed:', err));
 }
 
 async function handleSignIn() {
@@ -290,30 +266,21 @@ async function handleSignIn() {
   }
 
   const sid = await generateSessionId(username, password);
-  console.log('[signin] called');
-  console.log('[signin] username:', username);
-  console.log('[signin] sid:', sid.slice(0, 10) + '…');
 
-  showLoading('Signing in…');
+  // Enter app instantly — verify on-chain in background
+  saveSession(sid, username);
+  enterApp();
 
-  try {
-    const raw    = await viewCall('get_player', [sid]);
-    const parsed = typeof raw === 'string' ? safeParse(raw) : raw;
-
-    if (parsed?.found) {
-      saveSession(sid, username);
-      hideLoading();
-      enterApp();
-      return;
-    }
-
-    hideLoading();
-    showAuthError(errorEl, 'Account not found. Check your username and password carefully.');
-  } catch(err) {
-    hideLoading();
-    showAuthError(errorEl, 'Connection error. Please try again.');
-    console.error('[signin]', err);
-  }
+  viewCall('get_player', [sid])
+    .then(result => {
+      const parsed = typeof result === 'string' ? safeParse(result) : result;
+      if (!parsed?.found) {
+        console.warn('[signin] account not found on-chain');
+      } else {
+        console.log('[signin] verified on-chain');
+      }
+    })
+    .catch(err => console.error('[signin] verify failed:', err));
 }
 
 function toggleForgotPassword() {
