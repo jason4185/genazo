@@ -370,9 +370,10 @@ Return ONLY valid JSON:
             return json.dumps({"found": False})
         day = json.loads(self.daily_day_number)
         answers = json.loads(self.daily_answers)
+        clean_riddles = [r for r in riddles if r is not None]
         return json.dumps({
             "found": True,
-            "riddles": riddles,
+            "riddles": clean_riddles,
             "day": day,
             "total_answers": len(answers),
         })

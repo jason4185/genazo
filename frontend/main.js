@@ -415,8 +415,20 @@ function renderNoRiddle(body) {
 }
 
 function renderRiddle(container) {
-  const r          = allRiddles[currentRiddleIndex] || S.riddle;
-  if (!r) return;
+  const r = allRiddles[currentRiddleIndex] || S.riddle;
+
+  // Skip malformed or missing riddles
+  if (!r || !r.options || typeof r.options !== 'object' ||
+      !r.options['A'] || !r.options['B'] || !r.options['C'] || !r.options['D']) {
+    console.error('[renderRiddle] malformed riddle at index', currentRiddleIndex, r?.riddle_number);
+    currentRiddleIndex++;
+    if (currentRiddleIndex < allRiddles.length) {
+      renderRiddle(container);
+    } else {
+      showDashboard();
+    }
+    return;
+  }
   const riddleNum   = currentRiddleIndex + 1;
   const totalCount  = allRiddles.length || 1;
 
