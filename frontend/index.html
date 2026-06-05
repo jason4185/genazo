@@ -379,10 +379,29 @@
 </nav>
 
 <!-- ── Waiting for riddles ──────────────────────────────────────────────── -->
-<div id="screen-waiting" class="screen has-nav">
+<div id="screen-waiting" class="screen">
   <div class="grid-bg"></div>
-  <div class="screen-body">
-    <div id="waiting-message" style="flex:1;display:flex;align-items:center;justify-content:center"></div>
+  <div class="hdr">
+    <div class="logo-sm">GEN<b>AZO</b></div>
+    <div class="av-chip" onclick="showScreen('screen-profile');loadProfileData();" style="cursor:pointer">
+      <div class="av-sq" id="waiting-av"></div>
+      <div class="av-name" id="waiting-name"></div>
+    </div>
+  </div>
+  <div id="waiting-message" style="flex:1;display:flex;align-items:center;justify-content:center"></div>
+  <div class="bnav">
+    <div class="bn on" onclick="showScreen('screen-home');loadDailyRiddle()">
+      <i class="ti ti-home bn-icon" aria-hidden="true"></i>
+      <span class="bn-label">Home</span>
+    </div>
+    <div class="bn" onclick="showScreen('screen-leaderboard')">
+      <i class="ti ti-trophy bn-icon" aria-hidden="true"></i>
+      <span class="bn-label">Ranks</span>
+    </div>
+    <div class="bn" onclick="showScreen('screen-profile');loadProfileData()">
+      <i class="ti ti-user bn-icon" aria-hidden="true"></i>
+      <span class="bn-label">Profile</span>
+    </div>
   </div>
 </div>
 

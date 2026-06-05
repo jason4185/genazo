@@ -248,19 +248,16 @@ function onSignupUsernameInput(input) {
 }
 
 async function handleSignUp() {
-  const username = document.getElementById('signup-username').value.trim();
-  const password = document.getElementById('signup-password').value;
-  const confirm  = document.getElementById('signup-confirm').value;
+  const username = document.getElementById('signup-username')?.value.trim() || '';
+  const password = document.getElementById('signup-password')?.value || '';
+  const confirm  = document.getElementById('signup-confirm')?.value || '';
   const errorEl  = document.getElementById('signup-error');
 
   if (username.length < 3 || username.length > 20) {
-    showAuthError(errorEl, 'Username must be 3–20 characters.'); return;
+    showAuthError(errorEl, 'Username must be 3 to 20 characters.'); return;
   }
   if (/\s/.test(username)) {
     showAuthError(errorEl, 'Username cannot contain spaces.'); return;
-  }
-  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    showAuthError(errorEl, 'Letters, numbers and underscores only.'); return;
   }
   if (password.length < 6) {
     showAuthError(errorEl, 'Password must be at least 6 characters.'); return;
@@ -270,19 +267,36 @@ async function handleSignUp() {
   }
 
   const sid = await generateSessionId(username, password);
+  const btn = document.getElementById('signup-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating account...'; }
 
-  // Enter app instantly — register on-chain in background
-  saveSession(sid, username);
-  enterApp();
+  try {
+    const result = await callWrite('register_player', [sid, username]);
+    const parsed = typeof result === 'string' ? safeParse(result) : result;
 
-  callWrite('register_player', [sid, username])
-    .then(() => console.log('[signup] registered on-chain'))
-    .catch(err => console.error('[signup] registration failed:', err));
+    if (parsed?.error === 'username_taken') {
+      showAuthError(errorEl, 'This username is already taken.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Create Account'; }
+      return;
+    }
+    if (parsed?.error === 'already_registered') {
+      showAuthError(errorEl, 'This username is already registered. Please sign in instead.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Create Account'; }
+      return;
+    }
+
+    saveSession(sid, username);
+    enterApp();
+  } catch(err) {
+    console.error('[signup]', err);
+    showAuthError(errorEl, 'Connection error. Please try again.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Account'; }
+  }
 }
 
 async function handleSignIn() {
-  const username = document.getElementById('signin-username').value.trim();
-  const password = document.getElementById('signin-password').value;
+  const username = document.getElementById('signin-username')?.value.trim() || '';
+  const password = document.getElementById('signin-password')?.value || '';
   const errorEl  = document.getElementById('signin-error');
 
   if (!username || !password) {
@@ -290,21 +304,25 @@ async function handleSignIn() {
   }
 
   const sid = await generateSessionId(username, password);
+  const btn = document.getElementById('signin-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in...'; }
 
-  // Enter app instantly — verify on-chain in background
-  saveSession(sid, username);
-  enterApp();
+  try {
+    const result = await viewCall('get_player', [sid]);
+    const parsed = typeof result === 'string' ? safeParse(result) : result;
 
-  viewCall('get_player', [sid])
-    .then(result => {
-      const parsed = typeof result === 'string' ? safeParse(result) : result;
-      if (!parsed?.found) {
-        console.warn('[signin] account not found on-chain');
-      } else {
-        console.log('[signin] verified on-chain');
-      }
-    })
-    .catch(err => console.error('[signin] verify failed:', err));
+    if (parsed?.found) {
+      saveSession(sid, username);
+      enterApp();
+    } else {
+      showAuthError(errorEl, 'Account not found. Check your username and password carefully.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+    }
+  } catch(err) {
+    console.error('[signin]', err);
+    showAuthError(errorEl, 'Connection error. Please try again.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+  }
 }
 
 function toggleForgotPassword() {
@@ -754,10 +772,9 @@ function showResultScreen(result) {
 function showRiddleResult(isCorrect, points, answer, riddle, riddleNumber) {
   showScreen('screen-result');
 
-  const answeredSoFar = Object.keys(sessionAnswers).length;
-  const allAnswered   = answeredSoFar >= 5;
-  const moreAvailable = currentRiddleIndex + 1 < allRiddles.length;
-  const isLast        = allAnswered || (!moreAvailable && !allAnswered);
+  const answeredCount  = Object.keys(sessionAnswers).length;
+  const availableCount = allRiddles.length;
+  const totalExpected  = 5;
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   const get = (id)    => document.getElementById(id);
 
@@ -785,10 +802,10 @@ function showRiddleResult(isCorrect, points, answer, riddle, riddleNumber) {
 
   const nextBtn = get('next-btn');
   if (nextBtn) {
-    if (allAnswered) {
+    if (answeredCount >= totalExpected) {
       nextBtn.textContent = 'See Final Score';
       nextBtn.onclick     = showFinalScore;
-    } else if (!moreAvailable) {
+    } else if (answeredCount >= availableCount) {
       nextBtn.textContent = 'Wait for More Riddles';
       nextBtn.onclick     = showWaitingForRiddles;
     } else {
@@ -841,42 +858,37 @@ function showWaitingForRiddles() {
   const answered  = Object.keys(sessionAnswers).length;
   const remaining = 5 - answered;
 
-  showScreen('screen-waiting');
-
   const el = document.getElementById('waiting-message');
   if (el) {
     el.innerHTML = `
-      <div style="text-align:center;padding:40px 20px">
-        <div style="font-size:40px;margin-bottom:16px">⏳</div>
+      <div style="text-align:center;padding:40px 20px;position:relative;z-index:2">
+        <div style="font-size:48px;margin-bottom:16px">⏳</div>
         <div style="font-size:18px;font-weight:700;color:#E8E6F4;margin-bottom:8px">${answered} of 5 answered</div>
-        <div style="font-size:14px;color:#5A5878;line-height:1.7;margin-bottom:24px">
-          ${remaining} more riddle${remaining !== 1 ? 's' : ''} still being generated by AI validators.<br/>Check back in a few minutes.
+        <div style="font-size:14px;color:#5A5878;line-height:1.7;margin-bottom:8px">
+          ${remaining} more riddle${remaining !== 1 ? 's' : ''} still being generated.<br/>Check back in a few minutes.
         </div>
-        <div style="font-family:'Space Mono',monospace;font-size:11px;color:#3A3858;letter-spacing:2px">POWERED BY OPTIMISTIC DEMOCRACY</div>
+        <div style="font-family:'Space Mono',monospace;font-size:10px;color:#3A3858;letter-spacing:2px;margin-top:16px">POWERED BY OPTIMISTIC DEMOCRACY</div>
       </div>
     `;
   }
 
+  showScreen('screen-waiting');
+
   const interval = setInterval(async () => {
     try {
-      const result  = await viewCall('get_daily_riddle', []);
-      const parsed  = typeof result === 'string' ? JSON.parse(result) : result;
-      const newRiddles     = parsed?.riddles || [];
-      const answeredCount  = Object.keys(sessionAnswers).length;
+      const result     = await viewCall('get_daily_riddle', []);
+      const parsed     = typeof result === 'string' ? JSON.parse(result) : result;
+      const newRiddles = parsed?.riddles || [];
+      const answeredNow = Object.keys(sessionAnswers).length;
 
-      if (newRiddles.length > answeredCount) {
+      if (newRiddles.length > answeredNow) {
         clearInterval(interval);
         allRiddles = newRiddles;
-        currentRiddleIndex = answeredCount;
+        currentRiddleIndex = answeredNow;
         S.riddle = allRiddles[currentRiddleIndex];
         S.isSubmitting = false;
+        showTodayRiddle();
         showScreen('screen-home');
-        return;
-      }
-
-      if (newRiddles.length >= 5 && answeredCount >= 5) {
-        clearInterval(interval);
-        showFinalScore();
       }
     } catch(e) {
       console.error('[poll]', e);
