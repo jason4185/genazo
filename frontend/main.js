@@ -155,6 +155,30 @@ function isOldSession(sid) {
 }
 
 function saveSession(sid, username) {
+  const existingSid = localStorage.getItem('genazo_session');
+
+  if (existingSid !== sid) {
+    console.log('[auth] New user detected. Clearing game data.');
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith('genazo_answered') ||
+        key.startsWith('genazo_last_answered') ||
+        key.startsWith('genazo_tx_hashes') ||
+        key.startsWith('genazo_streak') ||
+        key.startsWith('genazo_points') ||
+        key.startsWith('genazo_days') ||
+        key.startsWith('genazo_lb') ||
+        key.startsWith('genazo_onboarded')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log('[auth] Cleared ' + keysToRemove.length + ' stale keys');
+  }
+
   localStorage.setItem('genazo_session', sid);
   localStorage.setItem('genazo_nickname', username);
   S.sessionId = sid;
