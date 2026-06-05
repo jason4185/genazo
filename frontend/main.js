@@ -679,8 +679,10 @@ function goToNextRiddle() {
 }
 
 function showFinalScore() {
-  const total   = Object.values(sessionAnswers).reduce((sum, a) => sum + a.points, 0);
-  const correct = Object.values(sessionAnswers).filter(a => a.correct).length;
+  const answered = Object.keys(sessionAnswers).length;
+  const correct  = Object.values(sessionAnswers).filter(a => a.correct).length;
+  const total    = allRiddles.length;
+  const points   = Object.values(sessionAnswers).reduce((sum, a) => sum + (a.points || 0), 0);
 
   const cur = getPlayerStats();
   const newStreak = correct > 0 ? cur.streak + 1 : 0;
@@ -691,7 +693,7 @@ function showFinalScore() {
     else if (newStreak >= 7)  streakBonus = 50;
     else if (newStreak >= 3)  streakBonus = 25;
   }
-  const totalWithBonus = total + streakBonus;
+  const totalWithBonus = points + streakBonus;
 
   savePlayerStats({
     streak:       newStreak,
@@ -721,7 +723,7 @@ function showFinalScore() {
 
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('final-score',   totalWithBonus + ' pts');
-  set('final-correct', correct + ' / ' + allRiddles.length + ' correct');
+  set('final-correct', correct + ' / ' + total + ' correct');
   set('final-av',      (S.username || '?')[0].toUpperCase());
   set('final-username', S.username || '');
   set('streak-final-text', newStreak >= 1
@@ -732,6 +734,33 @@ function showFinalScore() {
   updateAllAvatars();
   showOptimisticCommunity(S.username, correct > 0);
   loadCommunityResults();
+
+  if (allRiddles.length < 5) checkForNewRiddles();
+}
+
+function checkForNewRiddles() {
+  const interval = setInterval(async () => {
+    try {
+      const result = await viewCall('get_daily_riddle', []);
+      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+      const newCount     = parsed?.riddles?.length || 0;
+      const currentCount = allRiddles.length;
+
+      if (newCount > currentCount) {
+        clearInterval(interval);
+        allRiddles = parsed.riddles;
+        const banner = document.getElementById('new-riddle-banner');
+        if (banner) {
+          banner.style.display = 'flex';
+          banner.textContent   = 'Riddle ' + newCount + ' is now available!';
+        }
+      }
+    } catch(e) {
+      console.error('[checkForNewRiddles]', e);
+    }
+  }, 60000);
+
+  setTimeout(() => clearInterval(interval), 30 * 60 * 1000);
 }
 
 function showTxHash(hash) {
@@ -1046,4 +1075,5 @@ Object.assign(window, {
   setHomeView, showDashboard, showTodayRiddle,
   completeOnboarding, setAvatarColor, updateAllAvatars,
   goToNextRiddle, showFinalScore, showTxHash, updateProgressDots,
+  checkForNewRiddles,
 });
