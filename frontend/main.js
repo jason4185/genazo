@@ -216,9 +216,13 @@ async function syncPlayerState() {
     const parsedDay = typeof day === 'string' ? JSON.parse(day) : day;
 
     S.day = parsedDay;
+    console.error('[sync] day:', parsedDay);
 
     const playerResult = await viewCall('get_player', [S.sessionId]);
     const playerParsed = typeof playerResult === 'string' ? JSON.parse(playerResult) : playerResult;
+
+    console.error('[sync] player found:', playerParsed?.found);
+    console.error('[sync] last_day_answered:', playerParsed?.player?.last_day_answered);
 
     if (!playerParsed?.found) return;
 
@@ -226,23 +230,31 @@ async function syncPlayerState() {
     const lastDayAnswered = player?.last_day_answered || 0;
 
     if (lastDayAnswered >= parsedDay) {
-      // Fully completed today on another device
+      console.error('[sync] fully completed today');
       setStorage('genazo_last_answered_day', parsedDay.toString());
       return;
     }
 
-    // Fetch exact riddle-by-riddle answers from on-chain
     const answersResult = await viewCall('get_player_answers', [S.sessionId]);
     const answersParsed = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
 
-    if (!answersParsed?.found) return;
+    console.error('[sync] player answers found:', answersParsed?.found);
+    console.error('[sync] total answered:', answersParsed?.total_answered);
+    console.error('[sync] answers:', JSON.stringify(answersParsed?.answers));
+
+    if (!answersParsed?.found) {
+      console.error('[sync] no answers found on-chain');
+      return;
+    }
 
     const onChainAnswers = answersParsed.answers;
     const totalAnswered  = answersParsed.total_answered;
 
-    if (totalAnswered === 0) return;
+    if (totalAnswered === 0) {
+      console.error('[sync] zero answers');
+      return;
+    }
 
-    // Restore exact sessionAnswers from on-chain data
     const restoredAnswers = {};
     for (const [riddleNum, data] of Object.entries(onChainAnswers)) {
       restoredAnswers[parseInt(riddleNum)] = {
@@ -254,18 +266,20 @@ async function syncPlayerState() {
     }
 
     sessionAnswers = restoredAnswers;
+    console.error('[sync] restored answers:', JSON.stringify(restoredAnswers));
+
     setStorage('genazo_session_answers_' + parsedDay, JSON.stringify(restoredAnswers));
     setStorage('genazo_answered_count_'   + parsedDay, totalAnswered.toString());
     currentRiddleIndex = totalAnswered;
+    console.error('[sync] currentRiddleIndex:', currentRiddleIndex);
 
-    // Sync stats from on-chain player profile
-    if (player.streak       !== undefined) setStorage('genazo_streak',        player.streak.toString());
-    if (player.total_points !== undefined) setStorage('genazo_points',         player.total_points.toString());
-    if (player.days_answered !== undefined) setStorage('genazo_days_answered', player.days_answered.toString());
-    if (player.days_correct  !== undefined) setStorage('genazo_days_correct',  player.days_correct.toString());
+    if (player.streak        !== undefined) setStorage('genazo_streak',         player.streak.toString());
+    if (player.total_points  !== undefined) setStorage('genazo_points',          player.total_points.toString());
+    if (player.days_answered !== undefined) setStorage('genazo_days_answered',   player.days_answered.toString());
+    if (player.days_correct  !== undefined) setStorage('genazo_days_correct',    player.days_correct.toString());
 
   } catch(err) {
-    console.error('[sync]', err);
+    console.error('[sync] ERROR:', err);
   }
 }
 
@@ -277,6 +291,7 @@ async function enterApp() {
     showScreen('screen-onboarding');
   } else {
     showScreen('screen-home');
+    await loadDailyRiddle();
   }
 }
 
@@ -653,15 +668,8 @@ async function loadDailyRiddle() {
   updateAllStatDisplays();
   updateRankDisplay();
 
-  // Skip re-fetch if riddles already loaded for today
-  if (allRiddles.length && S.day) {
-    const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day') || '0');
-    if (lastAnsweredDay >= S.day) { await showDashboard(); return; }
-    showTodayRiddle(); return;
-  }
-
   const body = document.getElementById('home-body');
-  body.innerHTML = `<div class="loading-wrap"><div class="spinner-lg"></div><p>Loading today's riddles…</p></div>`;
+  if (body) body.innerHTML = `<div class="loading-wrap"><div class="spinner-lg"></div><p>Loading today's riddles…</p></div>`;
 
   try {
     const raw    = await viewCall('get_daily_riddle', []);
@@ -676,12 +684,15 @@ async function loadDailyRiddle() {
     } else {
       renderNoRiddle(body); return;
     }
+
     const parsedDay = parsed.day;
+
     if (S.day !== null && S.day !== parsedDay) {
       sessionAnswers     = {};
       currentRiddleIndex = 0;
       isWaitingForRiddles = false;
     }
+
     S.day          = parsedDay;
     S.totalAnswers = parsed.total_answers || 0;
     S.riddle       = allRiddles[0] || null;
@@ -689,11 +700,17 @@ async function loadDailyRiddle() {
     updateAllStatDisplays();
     updateRankDisplay();
 
-    const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day') || '0');
-    if (lastAnsweredDay >= S.day) { await showDashboard(); return; }
+    // Read AFTER sync has completed
+    const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day', '0'));
+    console.error('[load] day:', parsedDay, 'lastAnswered:', lastAnsweredDay);
+
+    if (lastAnsweredDay >= parsedDay) {
+      await showDashboard();
+      return;
+    }
 
     // Restore progress if mid-day
-    const savedAnswers = getStorage('genazo_session_answers_' + S.day, null);
+    const savedAnswers = getStorage('genazo_session_answers_' + parsedDay, null);
     if (savedAnswers) {
       try {
         sessionAnswers = JSON.parse(savedAnswers);
@@ -704,10 +721,16 @@ async function loadDailyRiddle() {
       sessionAnswers = {};
     }
 
-    currentRiddleIndex = Object.keys(sessionAnswers).length;
+    const answeredCount = Object.keys(sessionAnswers).length;
+    currentRiddleIndex  = answeredCount;
+    console.error('[load] answeredCount:', answeredCount, 'riddles:', allRiddles.length);
 
     if (currentRiddleIndex >= allRiddles.length) {
-      showWaitingForRiddles();
+      if (answeredCount >= 5) {
+        showFinalScore();
+      } else {
+        showWaitingForRiddles();
+      }
       return;
     }
 
