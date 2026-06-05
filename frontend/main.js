@@ -216,13 +216,9 @@ async function syncPlayerState() {
     const parsedDay = typeof day === 'string' ? JSON.parse(day) : day;
 
     S.day = parsedDay;
-    console.error('[sync] day:', parsedDay);
 
     const playerResult = await viewCall('get_player', [S.sessionId]);
     const playerParsed = typeof playerResult === 'string' ? JSON.parse(playerResult) : playerResult;
-
-    console.error('[sync] player found:', playerParsed?.found);
-    console.error('[sync] last_day_answered:', playerParsed?.player?.last_day_answered);
 
     if (!playerParsed?.found) return;
 
@@ -230,7 +226,6 @@ async function syncPlayerState() {
     const lastDayAnswered = player?.last_day_answered || 0;
 
     if (lastDayAnswered >= parsedDay) {
-      console.error('[sync] fully completed today');
       setStorage('genazo_last_answered_day', parsedDay.toString());
       return;
     }
@@ -238,22 +233,12 @@ async function syncPlayerState() {
     const answersResult = await viewCall('get_player_answers', [S.sessionId]);
     const answersParsed = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
 
-    console.error('[sync] player answers found:', answersParsed?.found);
-    console.error('[sync] total answered:', answersParsed?.total_answered);
-    console.error('[sync] answers:', JSON.stringify(answersParsed?.answers));
-
-    if (!answersParsed?.found) {
-      console.error('[sync] no answers found on-chain');
-      return;
-    }
+    if (!answersParsed?.found) return;
 
     const onChainAnswers = answersParsed.answers;
     const totalAnswered  = answersParsed.total_answered;
 
-    if (totalAnswered === 0) {
-      console.error('[sync] zero answers');
-      return;
-    }
+    if (totalAnswered === 0) return;
 
     const restoredAnswers = {};
     for (const [riddleNum, data] of Object.entries(onChainAnswers)) {
@@ -266,12 +251,10 @@ async function syncPlayerState() {
     }
 
     sessionAnswers = restoredAnswers;
-    console.error('[sync] restored answers:', JSON.stringify(restoredAnswers));
 
     setStorage('genazo_session_answers_' + parsedDay, JSON.stringify(restoredAnswers));
     setStorage('genazo_answered_count_'   + parsedDay, totalAnswered.toString());
     currentRiddleIndex = totalAnswered;
-    console.error('[sync] currentRiddleIndex:', currentRiddleIndex);
 
     if (player.streak        !== undefined) setStorage('genazo_streak',         player.streak.toString());
     if (player.total_points  !== undefined) setStorage('genazo_points',          player.total_points.toString());
@@ -702,7 +685,6 @@ async function loadDailyRiddle() {
 
     // Read AFTER sync has completed
     const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day', '0'));
-    console.error('[load] day:', parsedDay, 'lastAnswered:', lastAnsweredDay);
 
     if (lastAnsweredDay >= parsedDay) {
       await showAlreadyAnswered();
@@ -723,7 +705,6 @@ async function loadDailyRiddle() {
 
     const answeredCount = Object.keys(sessionAnswers).length;
     currentRiddleIndex  = answeredCount;
-    console.error('[load] answeredCount:', answeredCount, 'riddles:', allRiddles.length);
 
     if (currentRiddleIndex >= allRiddles.length) {
       if (answeredCount >= 5) {
