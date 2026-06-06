@@ -1,55 +1,51 @@
 # Genazo — Technical Documentation
 
-This document covers the architecture 
-decisions, workarounds, and implementation 
-details behind Genazo. Written for 
-GenLayer Builder Program judges and 
-developers who want to understand how 
-the game was built.
+Architecture decisions, workarounds,
+and implementation details for the
+GenLayer Builder Program and developers.
 
 ---
 
 ## Contract Architecture
 
-**Address:** 0xC6c644F4B4df6c8105b461F07DC180fBB1128Dc1
 **Network:** GenLayer Studionet
 **Language:** Python
 **Runner:** py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6
 
 ### State Variables
 
-All state stored as JSON strings in str 
-variables — not TreeMap or DynArray which 
-have persistence issues on Studio.
-
-| Variable | Type | Purpose |
-|---|---|---|
-| players | str | All player profiles and stats |
-| fingerprints | str | Used riddle angles — prevents repeats |
-| daily_riddle | str | Today's active riddle JSON |
-| daily_day_number | str | Current day counter |
-| daily_answers | str | Today's submissions |
-| all_time_leaderboard | str | Global rankings top 100 |
-| weekly_leaderboard | str | Weekly rankings resets every 7 days |
+| Variable | Purpose |
+|---|---|
+| players | All player profiles and stats |
+| fingerprints | Used riddle angles — prevents repeats |
+| daily_riddles | Today's riddles JSON array |
+| daily_day_number | Current day counter |
+| daily_answers | Today's submissions per player |
+| all_time_leaderboard | Global rankings top 100 |
+| weekly_leaderboard | Weekly rankings |
+| generation_complete | Flag set when script finishes |
 
 ### Write Methods
 
 | Method | Parameters | Purpose |
 |---|---|---|
-| generate_daily_riddle | session_id, docs_url | AI consensus riddle generation |
-| submit_daily_answer | session_id, username, answer | Records answer updates scores |
+| generate_daily_riddle | session_id, docs_url, riddle_number | AI consensus riddle generation |
+| submit_daily_answer | session_id, username, answer, riddle_number | Records answer and updates scores |
 | register_player | session_id, username | Creates player profile |
+| mark_generation_complete | session_id | Signals generation done for the day |
 
 ### View Methods
 
 | Method | Parameters | Purpose |
 |---|---|---|
-| get_daily_riddle | none | Returns today's riddle |
+| get_daily_riddle | none | Returns today's riddles array |
 | get_daily_answers | none | Returns today's submissions |
 | get_all_time_leaderboard | none | Global rankings |
 | get_weekly_leaderboard | none | Weekly rankings |
 | get_player | session_id | Player profile and stats |
+| get_player_answers | session_id | Exact riddle-by-riddle answers |
 | get_day_number | none | Current day count |
+| get_generation_status | none | Returns generation_complete flag |
 
 ---
 
@@ -57,37 +53,30 @@ have persistence issues on Studio.
 
 ### 1. Custom Knowledge Page
 
-**Problem:** The official GenLayer docs 
-site uses JavaScript rendering. When 5 
-validators fetch docs.genlayer.com they 
-each get different navigation sidebar 
-content — not actual documentation. This 
-caused UNDETERMINED consensus errors.
+**Problem:** docs.genlayer.com uses
+JavaScript rendering. Validators fetching
+it get different navigation sidebar
+content causing UNDETERMINED consensus.
 
-**Solution:** Built a dedicated plain HTML 
-page at genazo-knowledge.netlify.app 
-containing all GenLayer knowledge as clean 
-plain text. No JavaScript. No dynamic 
-content. Every validator fetches identical 
-content every time.
+**Solution:** Built plain HTML page at
+genazo-knowledge.netlify.app with all
+GenLayer knowledge as clean plain text.
+No JavaScript. No dynamic content.
+Every validator fetches identical content.
 
-The URL is passed as a parameter to the 
-contract — never hardcoded. This keeps 
-the contract flexible and allows the 
-knowledge page to be updated without 
-redeployment.
+URL passed as parameter to contract —
+never hardcoded. Update knowledge page
+anytime without redeployment.
 
 ### 2. Forced Topic Per Day
 
-**Problem:** When 5 different AI models 
-independently generate riddles they choose 
-completely different topics. Even with a 
-lenient comparator they frequently 
-disagree — UNDETERMINED errors.
+**Problem:** 5 different AI models choose
+completely different topics independently
+causing UNDETERMINED consensus errors.
 
-**Solution:** The contract forces all 
-validators toward the same topic each day 
-using a 15-topic rotation:
+**Solution:** Contract forces all validators
+toward the same topic each day using
+15-topic rotation:
 
 ```python
 TOPICS = [
@@ -107,113 +96,182 @@ TOPICS = [
     "LayerZero integration",
     "Community and culture",
 ]
-
-topic = TOPICS[(day - 1) % len(TOPICS)]
+topic_index = (day - 1 + riddle_number - 1) % 15
 ```
 
-All validators are told "generate a riddle 
-about {topic} today." They independently 
-generate different riddles but all about 
-the same concept. Consensus success rate 
-improved from 20-30% to 85-90%.
-
-This preserves true Optimistic Democracy. 
-Validators still independently generate 
-and verify — just guided toward the same 
-topic.
+Consensus success rate improved from
+20% to 85-90%.
 
 ### 3. Lenient prompt_comparative
 
-**Problem:** Strict equivalence checks 
-required validators to produce nearly 
-identical riddle text — impossible with 
-different AI models.
+**Problem:** Strict equivalence checks
+required nearly identical riddle text —
+impossible with different AI models.
 
 **Solution:**
 
 ```python
-result = gl.eq_principle.prompt_comparative(
+gl.eq_principle.prompt_comparative(
     generate,
-    "Both outputs are equivalent if they 
-    are both valid JSON riddles specifically 
-    about {topic} in the GenLayer ecosystem, 
-    even if the riddle text, hint wording, 
+    "Both outputs are equivalent if they
+    are both valid JSON riddles specifically
+    about {topic} in the GenLayer ecosystem,
+    even if the riddle text, hint wording,
     options, and explanation differ completely"
 )
 ```
 
-Validators agree as long as both outputs 
-cover the same forced topic. The leader's 
-riddle is what players see.
+### 4. Deterministic Answer Shuffle
 
-### 4. Optimistic UI
+**Problem:** AI models always placed
+correct answer as option A.
 
-**Problem:** Blockchain answer submission 
-takes 45-60 seconds. Players cannot wait 
-that long for a result.
-
-**Solution:** The correct answer is 
-already present in the riddle data fetched 
-from the contract. The frontend checks 
-locally and shows the result instantly. 
-Blockchain submission happens in the 
-background silently.
-
-This is not hardcoded. The answer was 
-generated by AI on-chain and fetched live. 
-The frontend just avoids a redundant 
-second blockchain call for verification.
-
-### 5. Fingerprint System
-
-Every riddle stores a fingerprint in 
-concept:angle format permanently on-chain:
+**Solution:** Shuffle using day and
+riddle number as seed:
 
 ```python
-fp = riddle.get("fingerprint", "")
-if fp:
-    fingerprints[fp] = True
-    self.fingerprints = json.dumps(fingerprints)
+seed = (day * 7 + riddle_number * 13) % 24
+permutations = [24 possible orderings]
+order = permutations[seed % len(permutations)]
 ```
 
-The generation prompt receives the full 
-list of used fingerprints and is told to 
-pick a different angle. With 15 topics 
-averaging 10+ angles each this gives 150+ 
-unique riddles before any real overlap.
+Pure math. No randomness. Different
+shuffle every day and riddle.
 
-### 6. Session Identity Without Wallet
+### 5. Generation Complete Flag
 
-Players get a unique session ID from 
-their chosen nickname plus a random 
-string stored in localStorage. One funded 
-wallet pays all gas in the background. 
-No MetaMask required.
+**Problem:** Frontend had no way to know
+when script finished all generation attempts.
 
-Trade-off: clearing the browser loses 
-session identity. Acceptable for testnet. 
-Wallet connect planned for mainnet.
+**Solution:** Script calls
+mark_generation_complete() after all
+riddles attempted. Contract stores flag.
+Frontend polls every 60 seconds.
+When flag is true — conclude the day.
 
-### 7. Retry Logic
+3-hour safety fallback handles crashes —
+frontend calls mark_generation_complete()
+itself after 3 hours.
 
-The cron script retries 3 times with 
-2-hour gaps if Studio has network issues:
+### 6. Flexible Riddle Count
 
-- 1:00 AM — Attempt 1
-- 3:00 AM — Attempt 2 if attempt 1 failed
-- 5:00 AM — Attempt 3 if attempt 2 failed
+**Problem:** If some riddles fail all
+3 attempts players would miss scoring.
 
-### 8. Cache Removal
+**Solution:**
 
-The contract originally cached fetched 
-docs to save consensus rounds. This caused 
-a silent rollback bug where the day counter 
-would not increment if cache logic failed.
+```python
+generation_done = json.loads(
+    self.generation_complete
+)
+all_answered = (
+    len(player_answers) >= len(riddles)
+    and generation_done
+)
+```
 
-Cache was removed entirely. The knowledge 
-page is plain text and fetches in under 
-2 seconds — fast enough that caching adds 
-no meaningful benefit.
+If 4 riddles generate max score is 400 pts.
+Players always get a complete day.
+
+### 7. Independent Retry Logic
+
+Each riddle retries independently:
+Riddle 1 fails → scheduled retry in 10 min
+Move to Riddle 2 immediately
+Riddle 2 succeeds
+...
+10 min later → Riddle 1 retries
+
+Failed riddles never block others.
+3 attempts per riddle with 10 min gaps.
+
+### 8. Optimistic UI
+
+**Problem:** Blockchain confirmation takes
+45-60 seconds. Players cannot wait.
+
+**Solution:** Correct answer already in
+riddle data fetched from contract.
+Frontend checks locally and shows result
+instantly. Blockchain submits in background.
+
+### 9. Password-Based Identity
+
+**Problem:** MetaMask creates friction.
+Random session IDs only work on one device.
+
+**Solution:**
+
+```javascript
+sessionId = sha256(username.toLowerCase() + ':' + password)
+```
+
+Same credentials on any device produce
+same session ID. Cross-device play without
+wallets. Passwords never leave the device.
+
+### 10. Cross-Device Sync
+
+**Problem:** Player progress on one device
+not visible on another device.
+
+**Solution:** On login syncPlayerState
+fetches exact riddle-by-riddle answers
+from new get_player_answers contract method.
+Restores sessionAnswers perfectly.
+Polls every 30 seconds for updates from
+other devices.
+
+### 11. Session-Specific localStorage
+
+**Problem:** Multiple accounts on same
+device shared keys causing data bleed.
+
+**Solution:**
+
+```javascript
+function storageKey(key) {
+  return key + '_' + sessionId;
+}
+```
+
+Each account has completely isolated
+storage. Switch accounts freely.
+
+### 12. Version-Based Cache Clearing
+
+**Problem:** New contract deployments
+left stale cached data on user devices.
+
+**Solution:**
+
+```javascript
+const CONFIG = {
+  CONTRACT_ADDRESS: '0x...',
+  APP_VERSION: '2.2.0',
+};
+```
+
+Bump APP_VERSION on every new deployment.
+All users automatically get fresh data
+on next visit. No manual clearing needed.
+
+### 13. Fingerprint System
+
+Every riddle stores a fingerprint in
+concept:angle format permanently on-chain.
+Generation prompt receives full list and
+picks a different angle each time.
+Estimated 150+ unique riddles before
+any real overlap.
+
+### 14. Cache Removal
+
+Contract originally cached fetched docs.
+Cache caused silent rollback bugs where
+day counter would not increment.
+Cache removed entirely — plain text
+knowledge page fetches in under 2 seconds.
 
 ---
 
@@ -225,55 +283,59 @@ no meaningful benefit.
 - Space Grotesk and Space Mono fonts
 - Fully mobile responsive
 
-### localStorage Keys
+### Key Global State
 
-| Key | Purpose |
-|---|---|
-| genazo_session | Player session ID |
-| genazo_nickname | Player display name |
-| genazo_contract | Contract address for cache busting |
-| genazo_streak | Current streak count |
-| genazo_points | Total points cached |
-| genazo_days_answered | Days played count |
-| genazo_days_correct | Correct answers count |
-| genazo_last_answered_day | Prevents double answering |
+```javascript
+let sessionId = null;
+let nickname = null;
+let currentDay = 0;
+let allRiddles = [];
+let sessionAnswers = {};
+let currentRiddleIndex = 0;
+let isWaitingForRiddles = false;
+let crossDevicePollInterval = null;
+```
 
-All localStorage cleared automatically 
-when CONTRACT_ADDRESS changes to prevent 
-stale data from previous deployments.
+### localStorage Architecture
+
+Global keys (shared across accounts):
+- genazo_session
+- genazo_nickname
+- genazo_contract_address
+- genazo_app_version
+- genazo_avatar_color
+
+Session-specific keys (per account):
+- genazo_streak_{sid}
+- genazo_points_{sid}
+- genazo_days_answered_{sid}
+- genazo_days_correct_{sid}
+- genazo_onboarded_{sid}
+- genazo_last_answered_day_{sid}
+- genazo_session_answers_{day}_{sid}
+- genazo_waiting_since_{sid}
 
 ---
 
 ## Automation
 
-GitHub Actions workflow runs at midnight 
-UTC daily. The workflow:
+GitHub Actions runs at midnight UTC.
 
-1. Checks out the repository
-2. Installs Node.js dependencies
-3. Runs daily-riddle.js with the 
-   FUNDED_PRIVATE_KEY secret
-
-No server required. No computer needs 
-to stay on.
+1. Checks generation_complete flag
+2. Checks existing riddle count
+3. Generates missing riddles sequentially
+4. Each riddle: 3 attempts, 10 min gaps
+5. Calls mark_generation_complete() when done
 
 ---
 
 ## Why GenLayer
 
-Genazo could not be built on any other 
-blockchain. It requires:
+Genazo requires:
 
-- Live web data fetching during contract 
-  execution (gl.nondet.web.render)
-- AI model calls inside the contract 
-  (gl.nondet.exec_prompt)
-- Semantic equivalence checking across 
-  validator outputs (gl.eq_principle)
-- Non-deterministic execution with 
-  blockchain-level consensus
+- gl.nondet.web.render — live web data
+- gl.nondet.exec_prompt — AI model calls
+- gl.eq_principle.prompt_comparative — semantic consensus
+- Non-deterministic execution with blockchain consensus
 
-These are uniquely GenLayer capabilities. 
-The game is a direct demonstration of what 
-Intelligent Contracts unlock for consumer 
-applications.
+Impossible to build on any other blockchain.
