@@ -1267,28 +1267,7 @@ function showWaitingForRiddles() {
 
 function showFinalScore() {
   stopCrossDevicePolling();
-
-  const savedConfirmed = parseInt(getStorage('genazo_tx_confirmed_' + S.day, '0'));
-  const savedFailed    = parseInt(getStorage('genazo_tx_failed_'    + S.day, '0'));
-  if (savedConfirmed > txConfirmedCount) txConfirmedCount = savedConfirmed;
-  if (savedFailed    > txFailedCount)    txFailedCount    = savedFailed;
-
-  const savedHash = localStorage.getItem('genazo_last_tx_hash');
-  if (savedHash) {
-    const text      = document.getElementById('tx-hash-text');
-    const successEl = document.getElementById('tx-hash-success');
-    if (text) text.textContent = savedHash.slice(0, 8) + '...' + savedHash.slice(-6);
-    if (successEl && txConfirmedCount > 0) successEl.style.display = 'flex';
-  }
-
-  const statusEl  = document.getElementById('tx-status-line');
-  const successEl = document.getElementById('tx-hash-success');
-  if (statusEl) {
-    statusEl.style.color = '#3A3858';
-    statusEl.textContent = '⏳ Recording ' + txConfirmedCount + '/' + txTotalCount + ' on-chain...';
-  }
-  if (successEl && txConfirmedCount === 0) successEl.style.display = 'none';
-  updateTxStatus();
+  restoreTxState();
   const todayAnswers = {};
   for (const [key, val] of Object.entries(sessionAnswers)) {
     const riddleNum = parseInt(key);
@@ -1312,6 +1291,13 @@ function showFinalScore() {
   const totalWithBonus = points + streakBonus;
 
   setStorage('genazo_last_answered_day', String(S.day));
+  setStorage('genazo_final_score_' + S.day, JSON.stringify({
+    points:   totalWithBonus,
+    correct:  correct,
+    answered: answered,
+    total:    total,
+    dots:     Object.values(todayAnswers).map(a => a.correct),
+  }));
 
   const history = getStreakHistory();
   history.push({ day: S.day, correct: correct > 0 });
@@ -1351,18 +1337,42 @@ function showFinalScore() {
 
 async function showAlreadyAnswered() {
   stopCrossDevicePolling();
+  restoreTxState();
 
-  const savedConfirmed = parseInt(getStorage('genazo_tx_confirmed_' + S.day, '0'));
-  const savedFailed    = parseInt(getStorage('genazo_tx_failed_'    + S.day, '0'));
-  if (savedConfirmed > txConfirmedCount) txConfirmedCount = savedConfirmed;
-  if (savedFailed    > txFailedCount)    txFailedCount    = savedFailed;
-
-  const savedHash = localStorage.getItem('genazo_last_tx_hash');
-  if (savedHash) {
-    const text      = document.getElementById('tx-hash-text');
-    const successEl = document.getElementById('tx-hash-success');
-    if (text) text.textContent = savedHash.slice(0, 8) + '...' + savedHash.slice(-6);
-    if (successEl && txConfirmedCount > 0) successEl.style.display = 'flex';
+  const savedFinal = getStorage('genazo_final_score_' + S.day, null);
+  if (savedFinal) {
+    try {
+      const final = JSON.parse(savedFinal);
+      showScreen('screen-final');
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      set('final-score',    final.points  + ' pts');
+      set('final-correct',  final.correct + ' / ' + final.answered + ' correct');
+      set('final-av',       (S.username || '?')[0].toUpperCase());
+      set('final-username', S.username || '');
+      const riddleCountEl = document.getElementById('final-riddle-count');
+      if (riddleCountEl) {
+        if (final.total < 5) {
+          riddleCountEl.textContent = `Only ${final.total} riddle${final.total !== 1 ? 's' : ''} were generated today. Full 5 tomorrow.`;
+          riddleCountEl.style.display = 'block';
+        } else {
+          riddleCountEl.style.display = 'none';
+        }
+      }
+      if (final.dots && Array.isArray(final.dots)) {
+        const dotsEl = document.getElementById('final-dots');
+        if (dotsEl) {
+          dotsEl.innerHTML = final.dots.map(c =>
+            `<div style="width:10px;height:10px;border-radius:50%;background:${c?'#34D399':'#F87171'};display:inline-block;margin:0 3px"></div>`
+          ).join('');
+        }
+      }
+      updateProgressDots();
+      updateAllAvatars();
+      loadCommunityResults();
+      return;
+    } catch(e) {
+      console.error('[restore final]', e);
+    }
   }
 
   try {
@@ -1472,11 +1482,9 @@ function updateTxStatus() {
 function showTxHash(hash) {
   txConfirmedCount++;
   setStorage('genazo_tx_confirmed_' + S.day, txConfirmedCount.toString());
+  if (hash) setStorage('genazo_tx_last_hash', hash);
   const text = document.getElementById('tx-hash-text');
-  if (text && hash) {
-    text.textContent = hash.slice(0, 8) + '...' + hash.slice(-6);
-    localStorage.setItem('genazo_last_tx_hash', hash);
-  }
+  if (text && hash) text.textContent = hash.slice(0, 8) + '...' + hash.slice(-6);
   updateTxStatus();
 }
 
@@ -1486,8 +1494,23 @@ function showTxFailed() {
   updateTxStatus();
 }
 
+function restoreTxState() {
+  txConfirmedCount = parseInt(getStorage('genazo_tx_confirmed_' + S.day, '0'));
+  txFailedCount    = parseInt(getStorage('genazo_tx_failed_'    + S.day, '0'));
+  txTotalCount     = allRiddles.length;
+
+  const savedHash = getStorage('genazo_tx_last_hash', null);
+  const text      = document.getElementById('tx-hash-text');
+  const successEl = document.getElementById('tx-hash-success');
+  if (savedHash && txConfirmedCount > 0) {
+    if (text) text.textContent = savedHash.slice(0, 8) + '...' + savedHash.slice(-6);
+  }
+  updateTxStatus();
+  if (successEl && txConfirmedCount > 0) successEl.style.display = 'flex';
+}
+
 function copyTxHash() {
-  const hash = localStorage.getItem('genazo_last_tx_hash') || '';
+  const hash = getStorage('genazo_tx_last_hash', '') || '';
   if (hash) navigator.clipboard?.writeText(hash).catch(() => {});
 }
 
@@ -1522,14 +1545,15 @@ async function loadCommunityResults() {
     }
 
     list.innerHTML = data.slice(0, 10).map(p => {
-      const isMe    = p.username?.toLowerCase() === S.username?.toLowerCase();
-      const answered = p.answered || 0;
-      const points   = p.points   || 0;
+      const isMe         = p.username?.toLowerCase() === S.username?.toLowerCase();
+      const points       = p.points || 0;
+      const correctCount = Math.round(points / 100);
+      const displayCorrect = Math.min(correctCount, totalRiddles);
       return `
         <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #0D0B18">
           <div style="width:24px;height:24px;border-radius:6px;background:${isMe?'#1F1640':'#0F0D1A'};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${isMe?'#9D7FEA':'#2A2840'};flex-shrink:0">${(p.username||'A')[0].toUpperCase()}</div>
           <div style="flex:1;font-size:13px;color:${isMe?'#E8E6F4':'#3A3858'};font-weight:${isMe?'600':'400'}">${escHtml(p.username||'Anonymous')}${isMe?' (you)':''}</div>
-          <div style="font-size:12px;color:#5A5878;margin-right:8px">${answered}/${totalRiddles}</div>
+          <div style="font-size:12px;color:#5A5878;margin-right:8px">${displayCorrect}/${totalRiddles}</div>
           <div style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${p.correct?'#34D399':'#F87171'}">${points} pts</div>
         </div>`;
     }).join('');
@@ -1823,6 +1847,8 @@ function clearStaleData() {
         key.startsWith('genazo_tx_hashes') ||
         key.startsWith('genazo_tx_confirmed') ||
         key.startsWith('genazo_tx_failed') ||
+        key.startsWith('genazo_tx_last_hash') ||
+        key.startsWith('genazo_final_score') ||
         key.startsWith('genazo_session_answers') ||
         key.startsWith('genazo_waiting_since') ||
         key.startsWith('genazo_streak') ||
