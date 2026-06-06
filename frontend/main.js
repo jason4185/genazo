@@ -61,8 +61,10 @@ function removeStorage(key) {
 
 // ── STATS — single source of truth ────────────────────────────────────────
 function getPlayerStats() {
+  const rawStreak = parseInt(getStorage('genazo_streak', '0'));
+  const maxStreak = S.day || rawStreak;
   return {
-    streak:       parseInt(getStorage('genazo_streak',        '0')),
+    streak:       Math.min(rawStreak, maxStreak),
     bestStreak:   parseInt(getStorage('genazo_best_streak',   '0')),
     totalPoints:  parseInt(getStorage('genazo_points',        '0')),
     daysAnswered: parseInt(getStorage('genazo_days_answered', '0')),
@@ -257,7 +259,10 @@ async function syncPlayerState() {
     setStorage('genazo_session_answers_' + parsedDay, JSON.stringify(restoredAnswers));
     setStorage('genazo_answered_count_'   + parsedDay, totalAnswered.toString());
 
-    if (player.streak        !== undefined) setStorage('genazo_streak',         player.streak.toString());
+    if (player.streak !== undefined) {
+      const cappedStreak = Math.min(parseInt(player.streak), parsedDay);
+      setStorage('genazo_streak', cappedStreak.toString());
+    }
     if (player.total_points  !== undefined) setStorage('genazo_points',          player.total_points.toString());
     if (player.days_answered !== undefined) setStorage('genazo_days_answered',   player.days_answered.toString());
     if (player.days_correct  !== undefined) setStorage('genazo_days_correct',    player.days_correct.toString());
