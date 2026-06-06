@@ -704,7 +704,7 @@ async function loadDailyRiddle() {
     const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day', '0'));
 
     if (lastAnsweredDay >= parsedDay) {
-      await showAlreadyAnswered();
+      showDashboard();
       return;
     }
 
@@ -1738,9 +1738,25 @@ function clearStaleData() {
   }
 }
 
+function goHome() {
+  const lastAnsweredDay = parseInt(getStorage('genazo_last_answered_day', '0'));
+
+  if ((lastAnsweredDay >= S.day && S.day > 0) || isWaitingForRiddles) {
+    // Switch to home without re-triggering loadDailyRiddle
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-home')?.classList.add('active');
+    document.getElementById('bottom-nav')?.classList.remove('hidden');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('nav-home')?.classList.add('active');
+    showDashboard();
+  } else {
+    showScreen('screen-home');
+  }
+}
+
 async function init() {
   clearStaleData();
-  document.getElementById('nav-home')?.addEventListener('click', () => showScreen('screen-home'));
+  document.getElementById('nav-home')?.addEventListener('click', goHome);
   checkExistingSession();
   updateAllAvatars();
 }
@@ -1758,7 +1774,7 @@ Object.assign(window, {
   launchConfetti, launchParticles, loadCommunityResults,
   showOptimisticCommunity, updateLeaderboardOptimistic,
   updateDashboardStats, loadDashboardActivity,
-  setHomeView, showDashboard, showTodayRiddle,
+  setHomeView, showDashboard, showTodayRiddle, goHome,
   setAvatarColor, updateAllAvatars,
   goToNextRiddle, showFinalScore, showWaitingForRiddles, concludeDay, showTxHash, updateProgressDots,
   checkForNewRiddles, showScreen, startCrossDevicePolling, stopCrossDevicePolling,

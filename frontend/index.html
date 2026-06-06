@@ -358,7 +358,9 @@
         <button onclick="showLeaderboard()" style="flex:1;padding:13px;border-radius:10px;border:1px solid #2D2040;background:transparent;color:#7C3AED;font-size:13px;font-weight:700;font-family:'Space Grotesk',sans-serif;cursor:pointer">Leaderboard</button>
       </div>
 
-      <div style="font-size:12px;color:#4A4862;text-align:center">Come back tomorrow for 5 new riddles</div>
+      <button onclick="goHome()" style="width:100%;padding:13px;border-radius:10px;border:1px solid #2D2040;background:transparent;color:#5A5878;font-size:13px;font-weight:600;font-family:'Space Grotesk',sans-serif;cursor:pointer;margin-top:8px">Back to Community</button>
+
+      <div style="font-size:12px;color:#4A4862;text-align:center;margin-top:14px">Come back tomorrow for 5 new riddles</div>
 
     </div>
   </div>
@@ -366,7 +368,7 @@
 
 <!-- ── Bottom Nav ─────────────────────────────────────────────────────────── -->
 <nav id="bottom-nav" class="bottom-nav hidden">
-  <button id="nav-home" class="nav-btn active" onclick="loadHomeScreen()">
+  <button id="nav-home" class="nav-btn active" onclick="goHome()">
     <i class="ti ti-home nav-icon"></i>
     <span class="nav-lbl">Home</span>
   </button>
