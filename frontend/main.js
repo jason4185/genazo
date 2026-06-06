@@ -1418,7 +1418,7 @@ function updateTxStatus() {
   const successEl = document.getElementById('tx-hash-success');
   if (!statusEl) return;
 
-  const total = txTotalCount || allRiddles.length;
+  const total = allRiddles.length || txTotalCount || 5;
   const done  = txConfirmedCount + txFailedCount;
 
   if (done < total) {
@@ -1473,6 +1473,9 @@ function updateProgressDots() {
 
 async function loadCommunityResults() {
   try {
+    const riddleParsed = await getCachedRiddle();
+    const totalRiddles = riddleParsed?.riddles?.length || 0;
+
     const raw  = await viewCall('get_daily_answers', []);
     let data   = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!Array.isArray(data)) data = [];
@@ -1483,14 +1486,23 @@ async function loadCommunityResults() {
     const list = document.getElementById('community-list');
     if (!list) return;
 
-    if (data.length === 0) { list.innerHTML = '<div style="font-size:12px;color:#3A3858">No answers yet</div>'; return; }
+    if (data.length === 0) {
+      list.innerHTML = '<div style="font-size:13px;color:#252338;text-align:center;padding:12px 0">No answers yet today.</div>';
+      return;
+    }
 
-    list.innerHTML = data.slice(0, 5).map(p => `
-      <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
-        <div style="width:24px;height:24px;border-radius:6px;background:#1F1640;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:#9D7FEA;flex-shrink:0">${(p.username||'?')[0].toUpperCase()}</div>
-        <div style="flex:1;font-size:13px;color:#6B6888">${escHtml(p.username||'Anonymous')}</div>
-        <div style="font-size:11px;font-weight:600;color:${p.correct?'#34D399':'#F87171'}">${p.correct?'Correct':'Wrong'}</div>
-      </div>`).join('');
+    list.innerHTML = data.slice(0, 10).map(p => {
+      const isMe    = p.username?.toLowerCase() === S.username?.toLowerCase();
+      const answered = p.answered || 0;
+      const points   = p.points   || 0;
+      return `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #0D0B18">
+          <div style="width:24px;height:24px;border-radius:6px;background:${isMe?'#1F1640':'#0F0D1A'};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:${isMe?'#9D7FEA':'#2A2840'};flex-shrink:0">${(p.username||'A')[0].toUpperCase()}</div>
+          <div style="flex:1;font-size:13px;color:${isMe?'#E8E6F4':'#3A3858'};font-weight:${isMe?'600':'400'}">${escHtml(p.username||'Anonymous')}${isMe?' (you)':''}</div>
+          <div style="font-size:12px;color:#5A5878;margin-right:8px">${answered}/${totalRiddles}</div>
+          <div style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${p.correct?'#34D399':'#F87171'}">${points} pts</div>
+        </div>`;
+    }).join('');
   } catch(err) { console.error('[community]', err); }
 }
 
