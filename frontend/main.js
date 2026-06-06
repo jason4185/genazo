@@ -6,7 +6,7 @@ import { TransactionStatus } from 'genlayer-js/types';
 const CONFIG = {
   CONTRACT_ADDRESS: '0xf6D5Eb24b26F11c174dd852A65C33A1F99A90D9b',
   FUNDED_PRIVATE_KEY: '0x2afff82ee65dadde965fe25a996799b042ebfd7fae003bcf6cf2205b8dfc4eaa',
-  APP_VERSION: '2.2.0',
+  APP_VERSION: '2.3.0',
 };
 
 const account = createAccount(CONFIG.FUNDED_PRIVATE_KEY);
@@ -240,6 +240,14 @@ async function syncPlayerState() {
     const player = playerParsed.player;
     const lastDayAnswered = player?.last_day_answered || 0;
 
+    if (player.streak !== undefined) {
+      const cappedStreak = Math.min(parseInt(player.streak), parsedDay);
+      setStorage('genazo_streak', cappedStreak.toString());
+    }
+    if (player.total_points  !== undefined) setStorage('genazo_points',          player.total_points.toString());
+    if (player.days_answered !== undefined) setStorage('genazo_days_answered',   player.days_answered.toString());
+    if (player.days_correct  !== undefined) setStorage('genazo_days_correct',    player.days_correct.toString());
+
     if (lastDayAnswered >= parsedDay) {
       setStorage('genazo_last_answered_day', parsedDay.toString());
       return;
@@ -269,14 +277,6 @@ async function syncPlayerState() {
 
     setStorage('genazo_session_answers_' + parsedDay, JSON.stringify(restoredAnswers));
     setStorage('genazo_answered_count_'   + parsedDay, totalAnswered.toString());
-
-    if (player.streak !== undefined) {
-      const cappedStreak = Math.min(parseInt(player.streak), parsedDay);
-      setStorage('genazo_streak', cappedStreak.toString());
-    }
-    if (player.total_points  !== undefined) setStorage('genazo_points',          player.total_points.toString());
-    if (player.days_answered !== undefined) setStorage('genazo_days_answered',   player.days_answered.toString());
-    if (player.days_correct  !== undefined) setStorage('genazo_days_correct',    player.days_correct.toString());
 
     const riddleResult = await viewCall('get_daily_riddle', []);
     const riddleParsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
@@ -1257,37 +1257,21 @@ function showFinalScore() {
   const points   = Object.values(sessionAnswers).reduce((sum, a) => sum + (a.points || 0), 0);
 
   const cur = getPlayerStats();
-  const newStreak = correct > 0 ? cur.streak + 1 : 0;
-  const newBest   = Math.max(cur.bestStreak, newStreak);
+  const displayStreak = correct > 0 ? cur.streak + 1 : 0;
   let streakBonus = 0;
   if (correct > 0) {
-    if      (newStreak >= 30) streakBonus = 100;
-    else if (newStreak >= 7)  streakBonus = 50;
-    else if (newStreak >= 3)  streakBonus = 25;
+    if      (displayStreak >= 30) streakBonus = 100;
+    else if (displayStreak >= 7)  streakBonus = 50;
+    else if (displayStreak >= 3)  streakBonus = 25;
   }
   const totalWithBonus = points + streakBonus;
 
-  savePlayerStats({
-    streak:       newStreak,
-    bestStreak:   newBest,
-    totalPoints:  cur.totalPoints + totalWithBonus,
-    daysAnswered: cur.daysAnswered + 1,
-    daysCorrect:  cur.daysCorrect + (correct > 0 ? 1 : 0),
-  });
-
-  const finalResult = {
-    correct: correct > 0, points: totalWithBonus,
-    new_streak: newStreak, streak_bonus: streakBonus,
-    total_correct: correct, total_riddles: total,
-  };
   setStorage('genazo_last_answered_day', String(S.day));
-  setStorage('genazo_last_result', JSON.stringify(finalResult));
 
   const history = getStreakHistory();
   history.push({ day: S.day, correct: correct > 0 });
   setStorage('genazo_streak_history', JSON.stringify(history.slice(-30)));
 
-  updateLeaderboardOptimistic(S.username, totalWithBonus);
   updateAllStatDisplays();
   updateRankDisplay();
 
@@ -1308,8 +1292,8 @@ function showFinalScore() {
   }
   set('final-av',      (S.username || '?')[0].toUpperCase());
   set('final-username', S.username || '');
-  set('streak-final-text', newStreak >= 1
-    ? `${newStreak} day streak${streakBonus > 0 ? ` · +${streakBonus} bonus` : ''}`
+  set('streak-final-text', displayStreak >= 1
+    ? `${displayStreak} day streak${streakBonus > 0 ? ` · +${streakBonus} bonus` : ''}`
     : 'No streak today');
 
   updateProgressDots();
@@ -1495,32 +1479,6 @@ function showOptimisticCommunity(username, isCorrect) {
       <div style="font-size:11px;font-weight:700;color:${resultColor}">${resultText}</div>
     </div>`;
   setTimeout(() => loadCommunityResults(), 30000);
-}
-
-function updateLeaderboardOptimistic(username, points) {
-  try {
-    const cached   = JSON.parse(getStorage('genazo_lb_alltime', '[]'));
-    const existing = cached.find(p =>
-      p.session_id === S.sessionId ||
-      p.username?.toLowerCase() === (username || '').toLowerCase()
-    );
-    if (existing) {
-      existing.total_points = (existing.total_points || 0) + points;
-    } else {
-      cached.unshift({
-        session_id:   S.sessionId,
-        username,
-        total_points: points,
-        streak:       parseInt(getStorage('genazo_streak', '0')),
-        days_answered: parseInt(getStorage('genazo_days_answered', '0')),
-      });
-    }
-    cached.sort((a, b) => (b.total_points || 0) - (a.total_points || 0));
-    setStorage('genazo_lb_alltime', JSON.stringify(cached));
-    setStorage('genazo_lb_time_alltime', Date.now().toString());
-  } catch(err) {
-    console.error('[optimistic lb]', err);
-  }
 }
 
 // ── LEADERBOARD ───────────────────────────────────────────────────────────
@@ -1850,7 +1808,7 @@ Object.assign(window, {
   showLeaderboard, loadLeaderboard, showProfile, shareResult,
   showResultScreen, showRiddleResult, showLeaderboardData, showLeaderboardEmpty,
   launchConfetti, launchParticles, loadCommunityResults,
-  showOptimisticCommunity, updateLeaderboardOptimistic,
+  showOptimisticCommunity,
   updateDashboardStats, loadDashboardActivity,
   setHomeView, showDashboard, showTodayRiddle, goHome,
   setAvatarColor, updateAllAvatars,
