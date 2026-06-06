@@ -727,12 +727,13 @@ async function loadDailyRiddle() {
       sessionAnswers     = {};
       currentRiddleIndex = 0;
       isWaitingForRiddles = false;
-      txConfirmedCount = 0;
-      txFailedCount    = 0;
-      txTotalCount     = 0;
+      txConfirmedCount   = 0;
+      txFailedCount      = 0;
+      txTotalCount       = 0;
     }
 
     S.day          = parsedDay;
+    txTotalCount   = allRiddles.length;
     S.totalAnswers = parsed.total_answers || 0;
     S.riddle       = allRiddles[0] || null;
 
@@ -1266,9 +1267,13 @@ function showWaitingForRiddles() {
 
 function showFinalScore() {
   stopCrossDevicePolling();
-  txTotalCount = allRiddles.length;
+  const statusEl  = document.getElementById('tx-status-line');
   const successEl = document.getElementById('tx-hash-success');
-  if (successEl && txConfirmedCount === 0 && txFailedCount === 0) successEl.style.display = 'none';
+  if (statusEl) {
+    statusEl.style.color = '#3A3858';
+    statusEl.textContent = '⏳ Recording ' + txConfirmedCount + '/' + txTotalCount + ' on-chain...';
+  }
+  if (successEl) successEl.style.display = 'none';
   updateTxStatus();
   const todayAnswers = {};
   for (const [key, val] of Object.entries(sessionAnswers)) {
