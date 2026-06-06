@@ -1290,6 +1290,13 @@ function showFinalScore() {
   }
   const totalWithBonus = points + streakBonus;
 
+  const dotsEl = document.getElementById('final-dots');
+  if (dotsEl) {
+    dotsEl.innerHTML = Object.values(todayAnswers).map(a =>
+      `<div style="width:12px;height:12px;border-radius:50%;background:${a.correct?'#34D399':'#F87171'}"></div>`
+    ).join('');
+  }
+
   setStorage('genazo_last_answered_day', String(S.day));
   setStorage('genazo_final_score_' + S.day, JSON.stringify({
     points:   totalWithBonus,
@@ -1497,16 +1504,27 @@ function showTxFailed() {
 function restoreTxState() {
   txConfirmedCount = parseInt(getStorage('genazo_tx_confirmed_' + S.day, '0'));
   txFailedCount    = parseInt(getStorage('genazo_tx_failed_'    + S.day, '0'));
-  txTotalCount     = allRiddles.length;
+
+  const savedFinal = getStorage('genazo_final_score_' + S.day, null);
+  if (savedFinal) {
+    try {
+      const final = JSON.parse(savedFinal);
+      txTotalCount = final.total || allRiddles.length || 5;
+    } catch(e) {
+      txTotalCount = allRiddles.length || 5;
+    }
+  } else {
+    txTotalCount = allRiddles.length || 5;
+  }
 
   const savedHash = getStorage('genazo_tx_last_hash', null);
   const text      = document.getElementById('tx-hash-text');
   const successEl = document.getElementById('tx-hash-success');
   if (savedHash && txConfirmedCount > 0) {
     if (text) text.textContent = savedHash.slice(0, 8) + '...' + savedHash.slice(-6);
+    if (successEl) successEl.style.display = 'flex';
   }
   updateTxStatus();
-  if (successEl && txConfirmedCount > 0) successEl.style.display = 'flex';
 }
 
 function copyTxHash() {
