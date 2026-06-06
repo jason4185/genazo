@@ -302,12 +302,13 @@ async function syncPlayerState() {
 async function enterApp() {
   clearStaleData();
   await syncPlayerState();
+  updateAllStatDisplays();
   const hasOnboarded = getStorage('genazo_onboarded', null);
   if (!hasOnboarded) {
     showScreen('screen-onboarding');
   } else {
     showScreen('screen-home');
-    await loadDailyRiddle();
+    loadDailyRiddle();
   }
 }
 
@@ -707,6 +708,9 @@ async function loadDailyRiddle() {
       sessionAnswers     = {};
       currentRiddleIndex = 0;
       isWaitingForRiddles = false;
+      txConfirmedCount = 0;
+      txFailedCount    = 0;
+      txTotalCount     = 0;
     }
 
     S.day          = parsedDay;
@@ -1244,17 +1248,21 @@ function showWaitingForRiddles() {
 
 function showFinalScore() {
   stopCrossDevicePolling();
-  txConfirmedCount = 0;
-  txFailedCount    = 0;
-  txTotalCount     = allRiddles.length;
-  const statusEl  = document.getElementById('tx-status-line');
+  txTotalCount = allRiddles.length;
   const successEl = document.getElementById('tx-hash-success');
-  if (statusEl) { statusEl.style.color = '#3A3858'; statusEl.textContent = '⏳ Recording 0/' + allRiddles.length + ' on-chain...'; }
-  if (successEl) successEl.style.display = 'none';
-  const answered = Object.keys(sessionAnswers).length;
-  const correct  = Object.values(sessionAnswers).filter(a => a.correct).length;
+  if (successEl && txConfirmedCount === 0 && txFailedCount === 0) successEl.style.display = 'none';
+  updateTxStatus();
+  const todayAnswers = {};
+  for (const [key, val] of Object.entries(sessionAnswers)) {
+    const riddleNum = parseInt(key);
+    if (riddleNum >= 1 && riddleNum <= allRiddles.length) {
+      todayAnswers[key] = val;
+    }
+  }
+  const answered = Object.keys(todayAnswers).length;
+  const correct  = Object.values(todayAnswers).filter(a => a.correct).length;
   const total    = allRiddles.length;
-  const points   = Object.values(sessionAnswers).reduce((sum, a) => sum + (a.points || 0), 0);
+  const points   = Object.values(todayAnswers).reduce((sum, a) => sum + (a.points || 0), 0);
 
   const cur = getPlayerStats();
   const displayStreak = correct > 0 ? cur.streak + 1 : 0;
