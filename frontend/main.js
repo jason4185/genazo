@@ -1267,13 +1267,27 @@ function showWaitingForRiddles() {
 
 function showFinalScore() {
   stopCrossDevicePolling();
+
+  const savedConfirmed = parseInt(getStorage('genazo_tx_confirmed_' + S.day, '0'));
+  const savedFailed    = parseInt(getStorage('genazo_tx_failed_'    + S.day, '0'));
+  if (savedConfirmed > txConfirmedCount) txConfirmedCount = savedConfirmed;
+  if (savedFailed    > txFailedCount)    txFailedCount    = savedFailed;
+
+  const savedHash = localStorage.getItem('genazo_last_tx_hash');
+  if (savedHash) {
+    const text      = document.getElementById('tx-hash-text');
+    const successEl = document.getElementById('tx-hash-success');
+    if (text) text.textContent = savedHash.slice(0, 8) + '...' + savedHash.slice(-6);
+    if (successEl && txConfirmedCount > 0) successEl.style.display = 'flex';
+  }
+
   const statusEl  = document.getElementById('tx-status-line');
   const successEl = document.getElementById('tx-hash-success');
   if (statusEl) {
     statusEl.style.color = '#3A3858';
     statusEl.textContent = '⏳ Recording ' + txConfirmedCount + '/' + txTotalCount + ' on-chain...';
   }
-  if (successEl) successEl.style.display = 'none';
+  if (successEl && txConfirmedCount === 0) successEl.style.display = 'none';
   updateTxStatus();
   const todayAnswers = {};
   for (const [key, val] of Object.entries(sessionAnswers)) {
@@ -1337,6 +1351,20 @@ function showFinalScore() {
 
 async function showAlreadyAnswered() {
   stopCrossDevicePolling();
+
+  const savedConfirmed = parseInt(getStorage('genazo_tx_confirmed_' + S.day, '0'));
+  const savedFailed    = parseInt(getStorage('genazo_tx_failed_'    + S.day, '0'));
+  if (savedConfirmed > txConfirmedCount) txConfirmedCount = savedConfirmed;
+  if (savedFailed    > txFailedCount)    txFailedCount    = savedFailed;
+
+  const savedHash = localStorage.getItem('genazo_last_tx_hash');
+  if (savedHash) {
+    const text      = document.getElementById('tx-hash-text');
+    const successEl = document.getElementById('tx-hash-success');
+    if (text) text.textContent = savedHash.slice(0, 8) + '...' + savedHash.slice(-6);
+    if (successEl && txConfirmedCount > 0) successEl.style.display = 'flex';
+  }
+
   try {
     const answersResult = await viewCall('get_player_answers', [S.sessionId]);
     const answersParsed = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
@@ -1443,6 +1471,7 @@ function updateTxStatus() {
 
 function showTxHash(hash) {
   txConfirmedCount++;
+  setStorage('genazo_tx_confirmed_' + S.day, txConfirmedCount.toString());
   const text = document.getElementById('tx-hash-text');
   if (text && hash) {
     text.textContent = hash.slice(0, 8) + '...' + hash.slice(-6);
@@ -1453,6 +1482,7 @@ function showTxHash(hash) {
 
 function showTxFailed() {
   txFailedCount++;
+  setStorage('genazo_tx_failed_' + S.day, txFailedCount.toString());
   updateTxStatus();
 }
 
@@ -1791,6 +1821,8 @@ function clearStaleData() {
         key.startsWith('genazo_answered') ||
         key.startsWith('genazo_last_answered') ||
         key.startsWith('genazo_tx_hashes') ||
+        key.startsWith('genazo_tx_confirmed') ||
+        key.startsWith('genazo_tx_failed') ||
         key.startsWith('genazo_session_answers') ||
         key.startsWith('genazo_waiting_since') ||
         key.startsWith('genazo_streak') ||
