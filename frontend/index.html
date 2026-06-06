@@ -337,15 +337,13 @@
         </div>
       </div>
 
-      <div id="tx-hash-display" style="display:none;width:100%;padding:10px 14px;border-radius:10px;background:#0A0914;border:1px solid #141220;align-items:center;gap:8px;margin-bottom:16px">
-        <i class="ti ti-cube" style="font-size:14px;color:#3A3858" aria-hidden="true"></i>
-        <div style="flex:1">
-          <div style="font-size:9px;color:#3A3858;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:2px">Recorded on-chain</div>
-          <div id="tx-hash-text" style="font-family:'Space Mono',monospace;font-size:11px;color:#4A4862"></div>
+      <div id="tx-hash-display" style="width:100%;padding:10px 14px;border-radius:10px;background:#0A0914;border:1px solid #141220;margin-bottom:16px">
+        <div style="font-size:9px;color:#252338;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:6px">Recorded on-chain</div>
+        <div id="tx-status-line" style="font-size:12px;color:#3A3858;margin-bottom:4px">⏳ Recording 0/5 on-chain...</div>
+        <div id="tx-hash-success" style="display:none;align-items:center;gap:8px">
+          <div id="tx-hash-text" style="font-family:'Space Mono',monospace;font-size:11px;color:#4A4862;flex:1"></div>
+          <div onclick="copyTxHash()" style="font-size:10px;color:#7C3AED;cursor:pointer;font-weight:600;flex-shrink:0">Copy</div>
         </div>
-      </div>
-      <div style="font-size:10px;color:#3A3858;margin-top:-8px;margin-bottom:16px;text-align:center">
-        Stored permanently on GenLayer Studionet.
       </div>
 
       <div style="width:100%;padding:12px 14px;border-radius:12px;background:#0A0914;border:1px solid #141220;margin-bottom:20px">

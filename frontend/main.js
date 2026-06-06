@@ -43,6 +43,9 @@ let allRiddles = [];
 let sessionAnswers = {};
 let isWaitingForRiddles = false;
 let crossDevicePollInterval = null;
+let txConfirmedCount = 0;
+let txFailedCount    = 0;
+let txTotalCount     = 0;
 
 // ── SESSION-SCOPED STORAGE ────────────────────────────────────────────────
 function storageKey(key) {
@@ -888,13 +891,17 @@ function submitAnswer() {
   callWrite('submit_daily_answer', [S.sessionId, S.username, S.selectedAnswer, riddleNumber])
     .then(hash => {
       if (hash) {
-        localStorage.setItem('genazo_last_tx_hash', hash);
         showTxHash(hash);
+      } else {
+        showTxFailed();
       }
       updateRankDisplay();
       setTimeout(() => loadLeaderboard('alltime'), 5000);
     })
-    .catch(err => console.error('[submit] error:', err.message));
+    .catch(err => {
+      console.error('[submit] error:', err.message);
+      showTxFailed();
+    });
 }
 
 // ── RESULT SCREEN ─────────────────────────────────────────────────────────
@@ -1237,6 +1244,13 @@ function showWaitingForRiddles() {
 
 function showFinalScore() {
   stopCrossDevicePolling();
+  txConfirmedCount = 0;
+  txFailedCount    = 0;
+  txTotalCount     = allRiddles.length;
+  const statusEl  = document.getElementById('tx-status-line');
+  const successEl = document.getElementById('tx-hash-success');
+  if (statusEl) { statusEl.style.color = '#3A3858'; statusEl.textContent = '⏳ Recording 0/' + allRiddles.length + ' on-chain...'; }
+  if (successEl) successEl.style.display = 'none';
   const answered = Object.keys(sessionAnswers).length;
   const correct  = Object.values(sessionAnswers).filter(a => a.correct).length;
   const total    = allRiddles.length;
@@ -1385,14 +1399,52 @@ function checkForNewRiddles() {
   setTimeout(() => clearInterval(interval), 30 * 60 * 1000);
 }
 
-function showTxHash(hash) {
-  if (!hash) return;
-  const display = document.getElementById('tx-hash-display');
-  const text    = document.getElementById('tx-hash-text');
-  if (display && text) {
-    text.textContent = hash.slice(0, 8) + '…' + hash.slice(-6);
-    display.style.display = 'flex';
+function updateTxStatus() {
+  const statusEl  = document.getElementById('tx-status-line');
+  const successEl = document.getElementById('tx-hash-success');
+  if (!statusEl) return;
+
+  const total = txTotalCount || allRiddles.length;
+  const done  = txConfirmedCount + txFailedCount;
+
+  if (done < total) {
+    statusEl.style.color = '#3A3858';
+    statusEl.textContent = '⏳ Recording ' + txConfirmedCount + '/' + total + ' on-chain...';
+    return;
   }
+
+  if (txFailedCount === 0) {
+    statusEl.style.color = '#34D399';
+    statusEl.textContent = '✅ ' + txConfirmedCount + '/' + total + ' recorded on-chain';
+    if (successEl) successEl.style.display = 'flex';
+  } else if (txConfirmedCount === 0) {
+    statusEl.style.color = '#F59E0B';
+    statusEl.textContent = '⚠️ 0/' + total + ' recorded on-chain. Will sync tomorrow.';
+  } else {
+    statusEl.style.color = '#F59E0B';
+    statusEl.textContent = '⚠️ ' + txConfirmedCount + '/' + total + ' recorded on-chain. ' + txFailedCount + ' will sync tomorrow.';
+    if (successEl) successEl.style.display = 'flex';
+  }
+}
+
+function showTxHash(hash) {
+  txConfirmedCount++;
+  const text = document.getElementById('tx-hash-text');
+  if (text && hash) {
+    text.textContent = hash.slice(0, 8) + '...' + hash.slice(-6);
+    localStorage.setItem('genazo_last_tx_hash', hash);
+  }
+  updateTxStatus();
+}
+
+function showTxFailed() {
+  txFailedCount++;
+  updateTxStatus();
+}
+
+function copyTxHash() {
+  const hash = localStorage.getItem('genazo_last_tx_hash') || '';
+  if (hash) navigator.clipboard?.writeText(hash).catch(() => {});
 }
 
 function updateProgressDots() {
@@ -1446,16 +1498,29 @@ function showOptimisticCommunity(username, isCorrect) {
 }
 
 function updateLeaderboardOptimistic(username, points) {
-  const cached   = JSON.parse(getStorage('genazo_lb_alltime', '[]'));
-  const existing = cached.find(p => p.username === username);
-  if (existing) {
-    existing.total_points = (existing.total_points || 0) + points;
-  } else {
-    cached.unshift({ username, total_points: points, streak: 1, days_answered: 1 });
+  try {
+    const cached   = JSON.parse(getStorage('genazo_lb_alltime', '[]'));
+    const existing = cached.find(p =>
+      p.session_id === S.sessionId ||
+      p.username?.toLowerCase() === (username || '').toLowerCase()
+    );
+    if (existing) {
+      existing.total_points = (existing.total_points || 0) + points;
+    } else {
+      cached.unshift({
+        session_id:   S.sessionId,
+        username,
+        total_points: points,
+        streak:       parseInt(getStorage('genazo_streak', '0')),
+        days_answered: parseInt(getStorage('genazo_days_answered', '0')),
+      });
+    }
+    cached.sort((a, b) => (b.total_points || 0) - (a.total_points || 0));
+    setStorage('genazo_lb_alltime', JSON.stringify(cached));
+    setStorage('genazo_lb_time_alltime', Date.now().toString());
+  } catch(err) {
+    console.error('[optimistic lb]', err);
   }
-  cached.sort((a, b) => (b.total_points || 0) - (a.total_points || 0));
-  setStorage('genazo_lb_alltime', JSON.stringify(cached));
-  setStorage('genazo_lb_time_alltime', Date.now().toString());
 }
 
 // ── LEADERBOARD ───────────────────────────────────────────────────────────
@@ -1789,7 +1854,7 @@ Object.assign(window, {
   updateDashboardStats, loadDashboardActivity,
   setHomeView, showDashboard, showTodayRiddle, goHome,
   setAvatarColor, updateAllAvatars,
-  goToNextRiddle, showFinalScore, showWaitingForRiddles, concludeDay, showTxHash, updateProgressDots,
+  goToNextRiddle, showFinalScore, showWaitingForRiddles, concludeDay, showTxHash, showTxFailed, copyTxHash, updateTxStatus, updateProgressDots,
   checkForNewRiddles, showScreen, startCrossDevicePolling, stopCrossDevicePolling,
 });
 
