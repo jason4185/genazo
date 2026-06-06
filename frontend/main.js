@@ -174,6 +174,14 @@ function encodeAnswer(answer) {
   return btoa(answer + '_genazo');
 }
 
+function getCorrectDisplay(riddle) {
+  const correctLetter = riddle._encoded
+    ? decodeAnswer(riddle.correct)
+    : riddle.correct;
+  const correctText = riddle.options?.[correctLetter] || '';
+  return correctLetter + ' — ' + correctText;
+}
+
 function decodeAnswer(encoded) {
   try {
     return atob(encoded).replace('_genazo', '');
@@ -951,7 +959,7 @@ function showResultScreen(result) {
 
   const r = S.riddle;
   if (r) {
-    set('correct-answer-text', r.correct + '. ' + (r.options?.[r.correct] || ''));
+    set('correct-answer-text', getCorrectDisplay(r));
     set('explanation-text', r.explanation || '');
   }
 
@@ -985,7 +993,7 @@ function showRiddleResult(isCorrect, points, answer, riddle, riddleNumber) {
   if (bkdn) bkdn.textContent = points > 0 ? `+${points} pts` : 'Better luck on the next one';
 
   set('riddle-progress-text', `Riddle ${riddleNumber} of ${allRiddles.length}`);
-  set('correct-answer-text', riddle.correct + '. ' + (riddle.options?.[riddle.correct] || ''));
+  set('correct-answer-text', getCorrectDisplay(riddle));
   set('explanation-text', riddle.explanation || '');
 
   const sb = get('streak-block');
