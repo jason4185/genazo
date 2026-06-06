@@ -1,6 +1,7 @@
 import { createClient, createAccount } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { TransactionStatus } from 'genlayer-js/types';
+import { readFileSync, writeFileSync } from 'fs';
 
 const CONFIG = {
   CONTRACT_ADDRESS: '0xf6D5Eb24b26F11c174dd852A65C33A1F99A90D9b',
@@ -12,6 +13,29 @@ const CONFIG = {
 
 const RETRY_DELAY = 10 * 60 * 1000; // 10 minutes
 const MAX_RETRIES = 3;
+
+function getTodayUTC() {
+  const now = new Date();
+  return now.toISOString().split('T')[0]; // "2026-06-06"
+}
+
+function getLastRunDate() {
+  try {
+    const data = readFileSync('./last-run-date.txt', 'utf8');
+    return data.trim();
+  } catch(e) {
+    return '';
+  }
+}
+
+function saveLastRunDate(date) {
+  try {
+    writeFileSync('./last-run-date.txt', date);
+    console.log('[daily] Saved run date:', date);
+  } catch(e) {
+    console.error('[daily] Could not save date:', e);
+  }
+}
 
 async function sendTransaction(client, riddleNumber) {
   const hash = await client.writeContract({
@@ -63,7 +87,17 @@ async function generateAllRiddles(client) {
     results[i] = await generateRiddleWithRetry(client, i);
   }
 
-  return results;
+  console.log('\n[daily] ═══ Final Summary ═══');
+  let successful = 0;
+  for (let i = 1; i <= 5; i++) {
+    const icon   = results[i] === true ? '✅' : '❌';
+    const status = results[i] === true ? 'Generated' : 'Failed all retries';
+    console.log(`[daily] Riddle ${i}: ${icon} ${status}`);
+    if (results[i] === true) successful++;
+  }
+  console.log(`\n[daily] ${successful} of 5 riddles generated.`);
+
+  return successful;
 }
 
 async function markComplete(client) {
@@ -88,32 +122,44 @@ async function markComplete(client) {
 
 async function alreadyGeneratedToday(client) {
   try {
-    const status = await client.readContract({
-      address: CONFIG.CONTRACT_ADDRESS,
-      functionName: 'get_generation_status',
-      args: [],
-    });
-    const isDone = typeof status === 'string' ? JSON.parse(status) : status;
+    const todayUTC    = getTodayUTC();
+    const lastRunDate = getLastRunDate();
 
-    if (isDone === true) {
-      console.log('[daily] Generation already complete today. Skipping.');
-      return true;
+    console.log('[daily] Today UTC:', todayUTC);
+    console.log('[daily] Last run date:', lastRunDate || '(none)');
+
+    if (lastRunDate !== todayUTC) {
+      console.log('[daily] New day detected:', todayUTC, '!= last run:', lastRunDate || '(none)');
+      console.log('[daily] Proceeding to generate.');
+      return false;
     }
 
-    const result = await client.readContract({
+    // Same day — check if already complete on-chain
+    const riddleResult = await client.readContract({
       address: CONFIG.CONTRACT_ADDRESS,
       functionName: 'get_daily_riddle',
       args: [],
     });
-    const parsed = typeof result === 'string' ? JSON.parse(result) : result;
-    const riddles = parsed?.riddles || [];
+    const riddleParsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
+    const riddles      = riddleParsed?.riddles || [];
 
-    if (riddles.length >= 5) {
-      console.log(`[daily] Already has ${riddles.length} riddles. Skipping.`);
+    const statusResult = await client.readContract({
+      address: CONFIG.CONTRACT_ADDRESS,
+      functionName: 'get_generation_status',
+      args: [],
+    });
+    const isDone = typeof statusResult === 'string' ? JSON.parse(statusResult) : statusResult;
+
+    if (isDone === true && riddles.length >= 5) {
+      console.log('[daily] Already complete today with', riddles.length, 'riddles. Skipping.');
       return true;
     }
 
-    console.log(`[daily] ${riddles.length} riddles exist. Generating missing ones.`);
+    if (riddles.length > 0 && riddles.length < 5) {
+      console.log('[daily] Only', riddles.length, 'riddles exist. Generating missing ones.');
+      return false;
+    }
+
     return false;
 
   } catch(err) {
@@ -126,11 +172,11 @@ async function main() {
   console.log('[daily] ═══════════════════════════════');
   console.log('[daily] Genazo Daily Riddle Generation');
   console.log('[daily] ═══════════════════════════════');
+  console.log('[daily] UTC Date:', getTodayUTC());
 
   const account = createAccount(CONFIG.FUNDED_PRIVATE_KEY);
   const client  = createClient({ chain: studionet, account });
 
-  console.log('[daily] Checking if riddles already exist...');
   const alreadyDone = await alreadyGeneratedToday(client);
 
   if (alreadyDone) {
@@ -138,23 +184,16 @@ async function main() {
     process.exit(0);
   }
 
-  console.log('[daily] No riddles yet today. Generating...');
-
-  const results = await generateAllRiddles(client);
-
-  console.log('\n[daily] ═══ Final Summary ═══');
-  let successful = 0;
-  for (let i = 1; i <= 5; i++) {
-    const icon   = results[i] === true ? '✅' : '❌';
-    const status = results[i] === true ? 'Generated' : 'Failed all retries';
-    console.log(`[daily] Riddle ${i}: ${icon} ${status}`);
-    if (results[i] === true) successful++;
-  }
-  console.log(`\n[daily] ${successful} of 5 riddles generated.`);
+  const successful = await generateAllRiddles(client);
 
   // Always mark complete so frontend knows generation is done,
   // even if not all 5 succeeded — players score on what was generated.
   await markComplete(client);
+
+  // Save today's date so tomorrow we know a new day has started.
+  // On GitHub Actions this file doesn't persist between runs,
+  // so lastRunDate is always '' which always triggers generation.
+  saveLastRunDate(getTodayUTC());
 
   if (successful === 0) {
     console.error('[daily] No riddles generated today.');
