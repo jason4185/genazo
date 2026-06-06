@@ -1337,7 +1337,7 @@ function showFinalScore() {
   updateProgressDots();
   updateAllAvatars();
   showOptimisticCommunity(S.username, correct > 0);
-  loadCommunityResults();
+  setTimeout(() => loadCommunityResults(), 500);
 
   if (allRiddles.length < 5) checkForNewRiddles(); // poll until 5 are generated
 }
@@ -1544,7 +1544,8 @@ function updateProgressDots() {
 
 async function loadCommunityResults() {
   try {
-    const riddleParsed = await getCachedRiddle();
+    const riddleResult = await viewCall('get_daily_riddle', []);
+    const riddleParsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
     const totalRiddles = riddleParsed?.riddles?.length || 0;
 
     const raw  = await viewCall('get_daily_answers', []);
