@@ -98,5 +98,31 @@ Every validator fetches identical content.
 
 ---
 
+---
+
+## Building Something Similar?
+
+If you want to build a daily game on GenLayer
+and use Claude Code to help you I wrote a
+detailed skill guide based on everything
+learned building Genazo:
+
+👉 **[Read SKILL.md](./SKILL.md)**
+
+It covers:
+- How to avoid UNDETERMINED consensus
+- Forcing topic agreement across validators
+- Deterministic shuffle without random
+- Generation complete flag pattern
+- UTC date-based cron detection
+- Password-based cross-device identity
+- Version-based cache clearing
+- Common pitfalls and exact fixes
+
+Written to help the GenLayer community
+build faster with fewer headaches.
+
+---
+
 Built for the GenLayer Builder Program.
 *Powered by Optimistic Democracy*
