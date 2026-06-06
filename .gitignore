@@ -4,3 +4,4 @@ dist/
 .DS_Store
 *.log
 scripts/last-run-date.txt
+.vercel
