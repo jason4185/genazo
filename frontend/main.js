@@ -529,17 +529,17 @@ async function loadDashboardActivity() {
     if (!Array.isArray(data)) data = [];
 
     const total = data.length;
-    const allCorrect = data.filter(p =>
+    const perfectScore = data.filter(p =>
       p.answered >= totalRiddles &&
-      p.correct === true &&
-      totalRiddles > 0
+      totalRiddles > 0 &&
+      p.points >= totalRiddles * 100
     ).length;
-    const pct = total > 0 ? Math.round((allCorrect / total) * 100) : 0;
+    const pct = total > 0 ? Math.round((perfectScore / total) * 100) : 0;
 
     const el = document.getElementById('activity-text');
     if (el) {
       el.textContent = total > 0
-        ? `${total} player${total !== 1 ? 's' : ''} answered today. ${pct}% completed all ${totalRiddles} riddles correctly.`
+        ? `${total} player${total !== 1 ? 's' : ''} answered today. ${pct}% got all ${totalRiddles} riddles correct.`
         : 'No answers yet today. Be the first!';
     }
   } catch(err) { console.error('[activity]', err); }
