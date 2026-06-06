@@ -1,8 +1,7 @@
 # Genazo — Technical Documentation
 
-Architecture decisions, workarounds,
-and implementation details for the
-GenLayer Builder Program and developers.
+Architecture decisions, workarounds and
+implementation details.
 
 ---
 
@@ -39,7 +38,7 @@ GenLayer Builder Program and developers.
 | Method | Parameters | Purpose |
 |---|---|---|
 | get_daily_riddle | none | Returns today's riddles array |
-| get_daily_answers | none | Returns today's submissions |
+| get_daily_answers | none | Returns today's submissions with session_id |
 | get_all_time_leaderboard | none | Global rankings |
 | get_weekly_leaderboard | none | Weekly rankings |
 | get_player | session_id | Player profile and stats |
@@ -53,63 +52,41 @@ GenLayer Builder Program and developers.
 
 ### 1. Custom Knowledge Page
 
-**Problem:** docs.genlayer.com uses
-JavaScript rendering. Validators fetching
-it get different navigation sidebar
-content causing UNDETERMINED consensus.
+**Problem:** docs.genlayer.com uses JavaScript
+rendering. Validators fetching it get different
+navigation sidebar content causing UNDETERMINED
+consensus.
 
 **Solution:** Built plain HTML page at
-genazo-knowledge.netlify.app with all
-GenLayer knowledge as clean plain text.
-No JavaScript. No dynamic content.
-Every validator fetches identical content.
-
-URL passed as parameter to contract —
-never hardcoded. Update knowledge page
-anytime without redeployment.
+genazo-knowledge.netlify.app with all GenLayer
+knowledge as clean plain text. No JavaScript.
+No dynamic content. Every validator fetches
+identical content. URL passed as parameter to
+contract — never hardcoded.
 
 ### 2. Forced Topic Per Day
 
 **Problem:** 5 different AI models choose
 completely different topics independently
 causing UNDETERMINED consensus errors.
+Consensus success rate was 20%.
 
 **Solution:** Contract forces all validators
-toward the same topic each day using
-15-topic rotation:
+toward the same topic using 15-topic rotation:
 
 ```python
-TOPICS = [
-    "Optimistic Democracy",
-    "Validators and how they work",
-    "Equivalence Principle",
-    "GenVM execution environment",
-    "Intelligent Contracts",
-    "Appeal Process",
-    "Non-deterministic operations",
-    "Finality and transaction lifecycle",
-    "GenLayer founding and mission",
-    "Testnet Asimov and Bradbury history",
-    "Builder Program and incentives",
-    "GEN token and staking economics",
-    "Partnerships and ecosystem",
-    "LayerZero integration",
-    "Community and culture",
-]
 topic_index = (day - 1 + riddle_number - 1) % 15
 ```
 
-Consensus success rate improved from
-20% to 85-90%.
+Consensus success rate improved to 85-90%.
 
 ### 3. Lenient prompt_comparative
 
-**Problem:** Strict equivalence checks
-required nearly identical riddle text —
-impossible with different AI models.
+**Problem:** Strict equivalence required
+nearly identical riddle text — impossible
+with different AI models.
 
 **Solution:**
-
 ```python
 gl.eq_principle.prompt_comparative(
     generate,
@@ -123,11 +100,11 @@ gl.eq_principle.prompt_comparative(
 
 ### 4. Deterministic Answer Shuffle
 
-**Problem:** AI models always placed
-correct answer as option A.
+**Problem:** AI models always placed correct
+answer as option A.
 
-**Solution:** Shuffle using day and
-riddle number as seed:
+**Solution:** Pure math shuffle using day
+and riddle number as seed:
 
 ```python
 seed = (day * 7 + riddle_number * 13) % 24
@@ -135,35 +112,29 @@ permutations = [24 possible orderings]
 order = permutations[seed % len(permutations)]
 ```
 
-Pure math. No randomness. Different
-shuffle every day and riddle.
+Different shuffle every day and riddle.
+No randomness needed. Works perfectly in GenVM.
 
 ### 5. Generation Complete Flag
 
-**Problem:** Frontend had no way to know
-when script finished all generation attempts.
+**Problem:** Frontend had no way to know when
+script finished all generation attempts.
 
 **Solution:** Script calls
-mark_generation_complete() after all
-riddles attempted. Contract stores flag.
-Frontend polls every 60 seconds.
-When flag is true — conclude the day.
-
-3-hour safety fallback handles crashes —
-frontend calls mark_generation_complete()
-itself after 3 hours.
+mark_generation_complete() after all riddles
+attempted. Contract stores flag. Frontend polls
+every 60-90 seconds. 3-hour safety fallback
+handles script crashes — frontend calls
+mark_generation_complete() itself.
 
 ### 6. Flexible Riddle Count
 
-**Problem:** If some riddles fail all
-3 attempts players would miss scoring.
+**Problem:** If some riddles fail all 3 attempts
+players would miss scoring entirely.
 
 **Solution:**
-
 ```python
-generation_done = json.loads(
-    self.generation_complete
-)
+generation_done = json.loads(self.generation_complete)
 all_answered = (
     len(player_answers) >= len(riddles)
     and generation_done
@@ -175,103 +146,141 @@ Players always get a complete day.
 
 ### 7. Independent Retry Logic
 
-Each riddle retries independently:
-Riddle 1 fails → scheduled retry in 10 min
+Each riddle retries independently with
+10 minute gaps. Failed riddles never block
+others. 3 attempts per riddle maximum.
+Riddle 1 fails → retry in 10 min
 Move to Riddle 2 immediately
 Riddle 2 succeeds
-...
 10 min later → Riddle 1 retries
 
-Failed riddles never block others.
-3 attempts per riddle with 10 min gaps.
+### 8. UTC Date-Based New Day Detection
 
-### 8. Optimistic UI
+**Problem:** generation_complete flag from
+previous day caused script to skip generation
+on new day.
+
+**Solution:** Script compares UTC date not
+the flag:
+
+```javascript
+function getTodayUTC() {
+  return new Date().toISOString().split('T')[0];
+}
+```
+
+Different date → new day → generate regardless
+of flag. Same date → check riddle count → skip
+if complete.
+
+On GitHub Actions the date file never exists
+between runs so it always generates. On local
+Mac the file persists to prevent double
+generation same day.
+
+### 9. Optimistic UI
 
 **Problem:** Blockchain confirmation takes
 45-60 seconds. Players cannot wait.
 
-**Solution:** Correct answer already in
-riddle data fetched from contract.
-Frontend checks locally and shows result
-instantly. Blockchain submits in background.
+**Solution:** Correct answer already in riddle
+data fetched from contract. Frontend checks
+locally and shows result instantly. Blockchain
+submits in background. TX hash shown when
+confirmed.
 
-### 9. Password-Based Identity
+### 10. Password-Based Identity
 
 **Problem:** MetaMask creates friction.
 Random session IDs only work on one device.
 
 **Solution:**
-
 ```javascript
 sessionId = sha256(username.toLowerCase() + ':' + password)
 ```
 
-Same credentials on any device produce
-same session ID. Cross-device play without
-wallets. Passwords never leave the device.
+Same credentials on any device produce same
+session ID. Cross-device play without wallets.
+Passwords never leave the device.
 
-### 10. Cross-Device Sync
+### 11. Cross-Device Sync
 
-**Problem:** Player progress on one device
-not visible on another device.
+On login syncPlayerState:
+1. Fetches get_player → checks if day complete
+2. Fetches get_player_answers → restores exact
+   riddle-by-riddle answers
+3. Restores sessionAnswers in memory
+4. Sets currentRiddleIndex to resume correctly
+5. Syncs streak and points from on-chain
 
-**Solution:** On login syncPlayerState
-fetches exact riddle-by-riddle answers
-from new get_player_answers contract method.
-Restores sessionAnswers perfectly.
-Polls every 30 seconds for updates from
-other devices.
+Cross-device polling runs every 60 seconds
+while on riddle screen. Detects if another
+device answered and moves to next riddle
+automatically within 90 seconds.
 
-### 11. Session-Specific localStorage
+### 12. Session-Specific localStorage
 
-**Problem:** Multiple accounts on same
-device shared keys causing data bleed.
+**Problem:** Multiple accounts on same device
+shared keys causing data bleed.
 
 **Solution:**
-
 ```javascript
 function storageKey(key) {
   return key + '_' + sessionId;
 }
 ```
 
-Each account has completely isolated
-storage. Switch accounts freely.
+Each account has completely isolated storage.
 
-### 12. Version-Based Cache Clearing
+### 13. Version-Based Cache Clearing
 
-**Problem:** New contract deployments
-left stale cached data on user devices.
+**Problem:** New contract deployments left
+stale cached data on user devices.
 
 **Solution:**
-
 ```javascript
 const CONFIG = {
   CONTRACT_ADDRESS: '0x...',
-  APP_VERSION: '2.2.0',
+  APP_VERSION: '2.3.0',
 };
 ```
 
 Bump APP_VERSION on every new deployment.
-All users automatically get fresh data
-on next visit. No manual clearing needed.
+All users automatically get fresh data.
 
-### 13. Fingerprint System
+### 14. TX Hash Persistence
+
+TX confirmation count and last hash saved
+to localStorage after each confirmation.
+Survives page refresh. Day Complete screen
+always shows accurate recording status.
+
+### 15. Fingerprint System
 
 Every riddle stores a fingerprint in
 concept:angle format permanently on-chain.
 Generation prompt receives full list and
-picks a different angle each time.
-Estimated 150+ unique riddles before
-any real overlap.
+picks different angle each time. Estimated
+150+ unique riddles before any real overlap.
 
-### 14. Cache Removal
+### 16. Vercel Deployment Fix
 
-Contract originally cached fetched docs.
-Cache caused silent rollback bugs where
-day counter would not increment.
-Cache removed entirely — plain text
-knowledge page fetches in under 2 seconds.
+**Problem:** Vercel was using cached dist
+from previous local build. New code changes
+were never being compiled on Vercel servers.
+
+**Solution:** Added vercel.json with explicit
+build command and output directory:
+
+```json
+{
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist"
+}
+```
+
+Now every deploy runs full Vite compile
+on Vercel servers.
 
 ---
 
@@ -294,9 +303,12 @@ let sessionAnswers = {};
 let currentRiddleIndex = 0;
 let isWaitingForRiddles = false;
 let crossDevicePollInterval = null;
+let txConfirmedCount = 0;
+let txFailedCount = 0;
+let txTotalCount = 0;
 ```
 
-### localStorage Architecture
+### localStorage Key Architecture
 
 Global keys (shared across accounts):
 - genazo_session
@@ -314,6 +326,10 @@ Session-specific keys (per account):
 - genazo_last_answered_day_{sid}
 - genazo_session_answers_{day}_{sid}
 - genazo_waiting_since_{sid}
+- genazo_tx_confirmed_{day}_{sid}
+- genazo_tx_failed_{day}_{sid}
+- genazo_tx_last_hash_{sid}
+- genazo_final_score_{day}_{sid}
 
 ---
 
@@ -321,11 +337,13 @@ Session-specific keys (per account):
 
 GitHub Actions runs at midnight UTC.
 
-1. Checks generation_complete flag
-2. Checks existing riddle count
-3. Generates missing riddles sequentially
-4. Each riddle: 3 attempts, 10 min gaps
-5. Calls mark_generation_complete() when done
+1. Checks UTC date vs last run date
+2. New date → proceeds to generate
+3. Same date → checks riddle count and flag
+4. Generates missing riddles sequentially
+5. Each riddle: 3 attempts, 10 min gaps
+6. Calls mark_generation_complete() when done
+7. Saves today's UTC date to last-run-date.txt
 
 ---
 
@@ -333,8 +351,8 @@ GitHub Actions runs at midnight UTC.
 
 Genazo requires:
 
-- gl.nondet.web.render — live web data
-- gl.nondet.exec_prompt — AI model calls
+- gl.nondet.web.render — live web data fetching
+- gl.nondet.exec_prompt — AI model calls inside contract
 - gl.eq_principle.prompt_comparative — semantic consensus
 - Non-deterministic execution with blockchain consensus
 
