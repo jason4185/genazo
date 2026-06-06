@@ -21,6 +21,10 @@ function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function generateSessionId(username, password) {
   const input = username.toLowerCase().trim() + ':' + password;
   const encoder = new TextEncoder();
@@ -46,6 +50,18 @@ let crossDevicePollInterval = null;
 let txConfirmedCount = 0;
 let txFailedCount    = 0;
 let txTotalCount     = 0;
+
+let riddleCache     = null;
+let riddleCacheTime = 0;
+
+async function getCachedRiddle() {
+  const now = Date.now();
+  if (riddleCache && now - riddleCacheTime < 30000) return riddleCache;
+  const result = await viewCall('get_daily_riddle', []);
+  riddleCache     = typeof result === 'string' ? JSON.parse(result) : result;
+  riddleCacheTime = now;
+  return riddleCache;
+}
 
 // ── SESSION-SCOPED STORAGE ────────────────────────────────────────────────
 function storageKey(key) {
@@ -302,12 +318,14 @@ async function syncPlayerState() {
 async function enterApp() {
   clearStaleData();
   await syncPlayerState();
+  await delay(500);
   updateAllStatDisplays();
   const hasOnboarded = getStorage('genazo_onboarded', null);
   if (!hasOnboarded) {
     showScreen('screen-onboarding');
   } else {
     showScreen('screen-home');
+    await delay(300);
     loadDailyRiddle();
   }
 }
@@ -537,8 +555,7 @@ function updateDashboardStats() {
 
 async function loadDashboardActivity() {
   try {
-    const riddleResult = await viewCall('get_daily_riddle', []);
-    const riddleParsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
+    const riddleParsed = await getCachedRiddle();
     const totalRiddles = riddleParsed?.riddles?.length || 0;
 
     const result = await viewCall('get_daily_answers', []);
@@ -618,6 +635,8 @@ async function showDashboard() {
   startCountdown();
   updateDashboardStats();
   loadDashboardActivity();
+  await delay(500);
+  updateRankDisplay();
 }
 
 async function showTodayRiddle() {
@@ -1138,7 +1157,7 @@ function startCrossDevicePolling() {
     } catch(err) {
       console.error('[crossDevicePoll]', err);
     }
-  }, 30000);
+  }, 60000);
 }
 
 function stopCrossDevicePolling() {
@@ -1173,8 +1192,7 @@ function showWaitingForRiddles() {
 
   const interval = setInterval(async () => {
     try {
-      const riddleResult = await viewCall('get_daily_riddle', []);
-      const parsed = typeof riddleResult === 'string' ? JSON.parse(riddleResult) : riddleResult;
+      const parsed = await getCachedRiddle();
       const newRiddles = (parsed?.riddles || []).map(r => ({ ...r, correct: encodeAnswer(r.correct), _encoded: true }));
 
       const statusResult = await viewCall('get_generation_status', []);
@@ -1232,7 +1250,7 @@ function showWaitingForRiddles() {
     } catch(e) {
       console.error('[poll]', e);
     }
-  }, 60000);
+  }, 90000);
 
   const giveUpTimer = setTimeout(async () => {
     clearInterval(interval);
@@ -1369,14 +1387,13 @@ async function showAlreadyAnswered() {
 function checkForNewRiddles() {
   const interval = setInterval(async () => {
     try {
-      const result = await viewCall('get_daily_riddle', []);
-      const parsed = typeof result === 'string' ? JSON.parse(result) : result;
-      const newCount     = parsed?.riddles?.length || 0;
+      const parsed   = await getCachedRiddle();
+      const newCount = parsed?.riddles?.length || 0;
       const currentCount = allRiddles.length;
 
       if (newCount > currentCount) {
         clearInterval(interval);
-        allRiddles = parsed.riddles.map(r => ({ ...r, correct: encodeAnswer(r.correct), _encoded: true }));
+        allRiddles = (parsed?.riddles || []).map(r => ({ ...r, correct: encodeAnswer(r.correct), _encoded: true }));
         const banner = document.getElementById('new-riddle-banner');
         if (banner) {
           banner.style.display = 'flex';
