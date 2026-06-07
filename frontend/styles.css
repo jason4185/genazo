@@ -36,6 +36,9 @@ body {
   color: var(--text-1);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 button {
   cursor: pointer; border: none;
@@ -63,8 +66,26 @@ input { font-family: var(--font-ui); }
   flex-direction: column;
   min-height: 100vh;
   position: relative;
+  width: 100%;
+  max-width: 480px;
+  box-sizing: border-box;
 }
 .screen.active { display: flex; }
+
+/* ── Auth screens centered ───────────────────────────────────────────────── */
+#screen-landing,
+#screen-signup,
+#screen-signin {
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
 .has-nav { padding-bottom: var(--nav-h); }
 
 /* ── Bottom Nav ──────────────────────────────────────────────────────────── */
