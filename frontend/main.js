@@ -426,8 +426,20 @@ async function handleSignUp() {
       if (parsed?.error === 'username_taken') {
         localStorage.removeItem('genazo_session');
         localStorage.removeItem('genazo_nickname');
+        S.sessionId = null;
+        S.username  = null;
         showScreen('screen-signup');
         showAuthError(errorEl, 'This username is already taken. Choose a different one.');
+        return;
+      }
+      if (parsed?.error === 'already_registered') {
+        localStorage.removeItem('genazo_session');
+        localStorage.removeItem('genazo_nickname');
+        S.sessionId = null;
+        S.username  = null;
+        showScreen('screen-signin');
+        showAuthError(errorEl, 'This username is already registered. Please sign in instead.');
+        return;
       }
     })
     .catch(err => {
@@ -603,6 +615,7 @@ async function loadDashboardActivity() {
     const result = await viewCall('get_daily_answers', []);
     let data = typeof result === 'string' ? JSON.parse(result) : result;
     if (!Array.isArray(data)) data = [];
+    data = deduplicateLeaderboard(data);
 
     const total = data.length;
     const perfectScore = data.filter(p =>
@@ -1695,6 +1708,7 @@ async function loadCommunityResults() {
     const raw  = await viewCall('get_daily_answers', []);
     let data   = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!Array.isArray(data)) data = [];
+    data = deduplicateLeaderboard(data);
 
     const title = document.getElementById('community-title');
     if (title) title.textContent = `Community today · ${data.length} answered`;
@@ -1796,6 +1810,25 @@ function renderLeaderboardEntries(list, entries) {
   list.innerHTML = html;
 }
 
+function deduplicateLeaderboard(data) {
+  const seen = {};
+  return data.filter(entry => {
+    const name = entry.username?.toLowerCase();
+    if (!name) return true;
+    if (seen[name]) {
+      if ((entry.total_points || entry.points || 0) >
+          (seen[name].total_points || seen[name].points || 0)) {
+        seen[name]._remove = true;
+        seen[name] = entry;
+        return true;
+      }
+      return false;
+    }
+    seen[name] = entry;
+    return true;
+  }).filter(e => !e._remove);
+}
+
 async function loadLeaderboard(tab) {
   document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(`lb-tab-${tab}`)?.classList.add('active');
@@ -1809,6 +1842,7 @@ async function loadLeaderboard(tab) {
                         'get_all_time_leaderboard', []);
     let data = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!Array.isArray(data)) data = [];
+    data = deduplicateLeaderboard(data);
     if (!data.length) { showLeaderboardEmpty(tab); return; }
     showLeaderboardData(data, tab);
   } catch(err) {
