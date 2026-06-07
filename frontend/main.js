@@ -1534,6 +1534,19 @@ function showTxFailed() {
 }
 
 async function restoreTxState() {
+  if (!S.sessionId) {
+    S.sessionId = localStorage.getItem('genazo_session');
+  }
+
+  if (!S.day || S.day === 0) {
+    if (S.sessionId) {
+      const savedDay = localStorage.getItem('genazo_last_answered_day_' + S.sessionId);
+      if (savedDay) {
+        S.day = parseInt(savedDay);
+      }
+    }
+  }
+
   txConfirmedCount = parseInt(getStorage('genazo_tx_confirmed_' + S.day, '0'));
   txFailedCount    = parseInt(getStorage('genazo_tx_failed_'    + S.day, '0'));
 
@@ -1573,6 +1586,15 @@ function copyTxHash() {
 }
 
 async function syncTxStateFromChain() {
+  if (!S.sessionId) {
+    S.sessionId = localStorage.getItem('genazo_session');
+  }
+
+  if (!S.sessionId) {
+    console.error('[syncTx] No sessionId found');
+    return txConfirmedCount;
+  }
+
   try {
     const result = await viewCall('get_player_answers', [S.sessionId]);
     const parsed = typeof result === 'string' ? JSON.parse(result) : result;
@@ -1587,7 +1609,7 @@ async function syncTxStateFromChain() {
 
     return onChainAnswered;
   } catch(err) {
-    console.error('[syncTx]', err);
+    console.error('[syncTx] error:', err.message);
     return txConfirmedCount;
   }
 }
