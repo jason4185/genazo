@@ -753,12 +753,23 @@ async function loadDailyRiddle() {
     const contractDay = parsedDay;
     const storedLastDay = parseInt(getStorage('genazo_last_answered_day', '0'));
 
-    if (storedLastDay > contractDay) {
-      removeStorage('genazo_last_answered_day');
-      removeStorage('genazo_session_answers_' + storedLastDay);
-      removeStorage('genazo_final_score_' + storedLastDay);
-      sessionAnswers = {};
-      currentRiddleIndex = 0;
+    if (storedLastDay >= contractDay) {
+      try {
+        const playerAnswers = await viewCall('get_player_answers', [S.sessionId]);
+        const answersData = typeof playerAnswers === 'string' ? JSON.parse(playerAnswers) : playerAnswers;
+        const totalAnswered = answersData?.total_answered || 0;
+
+        if (totalAnswered === 0) {
+          removeStorage('genazo_last_answered_day');
+          removeStorage('genazo_session_answers_' + contractDay);
+          removeStorage('genazo_final_score_' + contractDay);
+          sessionAnswers = {};
+          currentRiddleIndex = 0;
+          console.error('[fix] Cleared stuck day state');
+        }
+      } catch(e) {
+        console.error('[fix]', e);
+      }
     }
 
     if (S.day !== null && S.day !== parsedDay) {
