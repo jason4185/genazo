@@ -447,8 +447,25 @@ async function handleSignIn() {
 
   const sid = await generateSessionId(username, password);
 
-  const btn = document.getElementById('signin-submit-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Signing in...'; }
+  const btn      = document.getElementById('signin-submit-btn');
+  const statusEl = document.getElementById('signin-status');
+
+  function setLoading(on) {
+    if (!btn) return;
+    if (on) {
+      btn.disabled   = true;
+      btn.innerHTML  = 'Signing in<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>';
+      btn.classList.add('btn-loading');
+      if (statusEl) { statusEl.textContent = 'Verifying on GenLayer...'; statusEl.style.opacity = '1'; }
+    } else {
+      btn.disabled   = false;
+      btn.textContent = 'Sign In';
+      btn.classList.remove('btn-loading');
+      if (statusEl) { statusEl.textContent = ''; statusEl.style.opacity = '0'; }
+    }
+  }
+
+  setLoading(true);
 
   try {
     const result = await viewCall('get_player', [sid]);
@@ -476,11 +493,10 @@ async function handleSignIn() {
     callWrite('register_player', [sid, username])
       .then(r => {
         const p = typeof r === 'string' ? JSON.parse(r) : r;
+        setLoading(false);
         if (p?.error === 'username_taken') {
-          if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
           showAuthError(errorEl, 'Wrong password. Please try again.');
         } else {
-          if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
           showAuthError(errorEl, 'Account not found. Create an account first.');
         }
       })
@@ -495,8 +511,7 @@ async function handleSignIn() {
     enterApp();
   } finally {
     if (btn && btn.disabled) {
-      btn.disabled = false;
-      btn.textContent = 'Sign In';
+      setLoading(false);
     }
   }
 }
