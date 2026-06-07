@@ -24,14 +24,56 @@ Everything happens on-chain.
 
 ## Account System
 
-No wallet required.
+Most Web3 games force you to connect
+a wallet before you can play. That is
+friction. You need MetaMask installed,
+you need to approve transactions, you
+need to switch networks. Most people
+drop off before they even see the game.
 
-- Pick a username and password on signup
-- Same credentials work on any device
-- Session ID derived locally using SHA-256
-- Passwords never leave your device
-- First come first served on usernames
-- Save your password — it cannot be recovered
+Genazo is different.
+
+We removed wallet connection entirely
+and replaced it with something simpler —
+a username and password. But instead of
+storing your password on a server we
+never touch it at all.
+
+Here is what actually happens:
+
+When you sign up your username and
+password are combined locally in your
+browser and run through SHA-256 — a
+cryptographic hash function. The result
+is your session ID. That session ID is
+what gets stored on the GenLayer
+blockchain as your identity.
+username + password → SHA-256 → session ID
+session ID → stored on-chain → your identity
+
+Your password never leaves your device.
+No server ever sees it. No database
+stores it. It is pure cryptography.
+
+And because the same username and
+password always produce the same session
+ID you can sign in on any device — phone,
+laptop, tablet — and pick up exactly
+where you left off. No wallet needed.
+No browser extension. No network switching.
+
+Just a username and a password.
+
+The tradeoff is simple: if you forget
+your password you cannot recover your
+account. There is no "forgot password"
+email because there is no email. Write
+it down somewhere safe.
+
+This is what Web3 onboarding should
+feel like — the power of blockchain
+identity without the friction of
+wallet infrastructure.
 
 ---
 
