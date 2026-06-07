@@ -295,11 +295,6 @@ async function syncPlayerState() {
     if (player.days_answered !== undefined) setStorage('genazo_days_answered',   player.days_answered.toString());
     if (player.days_correct  !== undefined) setStorage('genazo_days_correct',    player.days_correct.toString());
 
-    if (lastDayAnswered >= parsedDay) {
-      setStorage('genazo_last_answered_day', parsedDay.toString());
-      return;
-    }
-
     const answersResult = await viewCall('get_player_answers', [S.sessionId]);
     const answersParsed = typeof answersResult === 'string' ? JSON.parse(answersResult) : answersResult;
 
@@ -2029,6 +2024,16 @@ async function init() {
 }
 
 init();
+
+function resetStuckPlayer() {
+  const sid = localStorage.getItem('genazo_session');
+  if (!sid) return;
+  const key = 'genazo_last_answered_day_' + sid;
+  localStorage.removeItem(key);
+  console.log('Reset last_answered_day');
+  location.reload();
+}
+window.resetStuckPlayer = resetStuckPlayer;
 
 // ── EXPORTS ───────────────────────────────────────────────────────────────
 Object.assign(window, {
