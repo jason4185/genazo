@@ -53,6 +53,7 @@ let txTotalCount     = 0;
 
 let riddleCache     = null;
 let riddleCacheTime = 0;
+let txSyncInterval  = null;
 
 async function getCachedRiddle() {
   const now = Date.now();
@@ -61,6 +62,31 @@ async function getCachedRiddle() {
   riddleCache     = typeof result === 'string' ? JSON.parse(result) : result;
   riddleCacheTime = now;
   return riddleCache;
+}
+
+function getTxTotal() {
+  if (txTotalCount > 0) return txTotalCount;
+  if (allRiddles.length > 0) return allRiddles.length;
+
+  try {
+    if (S.day > 0) {
+      const savedFinal = getStorage('genazo_final_score_' + S.day, null);
+      if (savedFinal) {
+        const final = JSON.parse(savedFinal);
+        if (final.total > 0) return final.total;
+      }
+    }
+
+    for (let i = 1; i <= 100; i++) {
+      const saved = getStorage('genazo_final_score_' + i, null);
+      if (saved) {
+        const final = JSON.parse(saved);
+        if (final.total > 0) return final.total;
+      }
+    }
+  } catch(e) {}
+
+  return 5;
 }
 
 // ── SESSION-SCOPED STORAGE ────────────────────────────────────────────────
@@ -176,6 +202,11 @@ function toast(msg, type = 'ok') {
 
 // ── SCREEN ────────────────────────────────────────────────────────────────
 function showScreen(id) {
+  const currentScreen = document.querySelector('.screen.active')?.id;
+  if (currentScreen === 'screen-final' && id !== 'screen-final') {
+    stopTxSyncPolling();
+  }
+
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id)?.classList.add('active');
   const nav = document.getElementById('bottom-nav');
@@ -481,6 +512,7 @@ function toggleForgotPassword() {
 }
 
 function signOut() {
+  stopTxSyncPolling();
   if (confirm('Sign out? You will need your username and password to sign back in.')) {
     localStorage.removeItem('genazo_session');
     localStorage.removeItem('genazo_nickname');
@@ -1265,9 +1297,9 @@ function showWaitingForRiddles() {
   }, 3 * 60 * 60 * 1000);
 }
 
-function showFinalScore() {
+async function showFinalScore() {
   stopCrossDevicePolling();
-  restoreTxState();
+  await restoreTxState();
   const todayAnswers = {};
   for (const [key, val] of Object.entries(sessionAnswers)) {
     const riddleNum = parseInt(key);
@@ -1344,7 +1376,7 @@ function showFinalScore() {
 
 async function showAlreadyAnswered() {
   stopCrossDevicePolling();
-  restoreTxState();
+  await restoreTxState();
 
   const savedFinal = getStorage('genazo_final_score_' + S.day, null);
   if (savedFinal) {
@@ -1463,7 +1495,7 @@ function updateTxStatus() {
   const successEl = document.getElementById('tx-hash-success');
   if (!statusEl) return;
 
-  const total = allRiddles.length || txTotalCount || 5;
+  const total = getTxTotal();
   const done  = txConfirmedCount + txFailedCount;
 
   if (done < total) {
@@ -1501,7 +1533,7 @@ function showTxFailed() {
   updateTxStatus();
 }
 
-function restoreTxState() {
+async function restoreTxState() {
   txConfirmedCount = parseInt(getStorage('genazo_tx_confirmed_' + S.day, '0'));
   txFailedCount    = parseInt(getStorage('genazo_tx_failed_'    + S.day, '0'));
 
@@ -1520,16 +1552,74 @@ function restoreTxState() {
   const savedHash = getStorage('genazo_tx_last_hash', null);
   const text      = document.getElementById('tx-hash-text');
   const successEl = document.getElementById('tx-hash-success');
+
   if (savedHash && txConfirmedCount > 0) {
     if (text) text.textContent = savedHash.slice(0, 8) + '...' + savedHash.slice(-6);
-    if (successEl) successEl.style.display = 'flex';
   }
+
   updateTxStatus();
+
+  const total = getTxTotal();
+  if (txConfirmedCount < total) {
+    startTxSyncPolling();
+  } else if (txConfirmedCount >= total && successEl) {
+    successEl.style.display = 'flex';
+  }
 }
 
 function copyTxHash() {
   const hash = getStorage('genazo_tx_last_hash', '') || '';
   if (hash) navigator.clipboard?.writeText(hash).catch(() => {});
+}
+
+async function syncTxStateFromChain() {
+  try {
+    const result = await viewCall('get_player_answers', [S.sessionId]);
+    const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+
+    const onChainAnswered = parsed?.total_answered || 0;
+
+    if (onChainAnswered > txConfirmedCount) {
+      txConfirmedCount = onChainAnswered;
+      setStorage('genazo_tx_confirmed_' + S.day, txConfirmedCount.toString());
+      updateTxStatus();
+    }
+
+    return onChainAnswered;
+  } catch(err) {
+    console.error('[syncTx]', err);
+    return txConfirmedCount;
+  }
+}
+
+function startTxSyncPolling() {
+  stopTxSyncPolling();
+
+  setTimeout(async () => {
+    await syncTxStateFromChain();
+
+    const total = getTxTotal();
+
+    if (txConfirmedCount < total) {
+      txSyncInterval = setInterval(async () => {
+        const confirmed = await syncTxStateFromChain();
+        if (confirmed >= getTxTotal()) {
+          stopTxSyncPolling();
+        }
+      }, 10000);
+
+      setTimeout(() => {
+        stopTxSyncPolling();
+      }, 5 * 60 * 1000);
+    }
+  }, 3000);
+}
+
+function stopTxSyncPolling() {
+  if (txSyncInterval) {
+    clearInterval(txSyncInterval);
+    txSyncInterval = null;
+  }
 }
 
 function updateProgressDots() {
@@ -1933,6 +2023,7 @@ Object.assign(window, {
   setAvatarColor, updateAllAvatars,
   goToNextRiddle, showFinalScore, showWaitingForRiddles, concludeDay, showTxHash, showTxFailed, copyTxHash, updateTxStatus, updateProgressDots,
   checkForNewRiddles, showScreen, startCrossDevicePolling, stopCrossDevicePolling,
+  syncTxStateFromChain, startTxSyncPolling, stopTxSyncPolling,
 });
 
 document.addEventListener('DOMContentLoaded', function() {
