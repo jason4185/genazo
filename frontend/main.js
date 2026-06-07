@@ -750,6 +750,17 @@ async function loadDailyRiddle() {
 
     const parsedDay = parsed.day;
 
+    const contractDay = parsedDay;
+    const storedLastDay = parseInt(getStorage('genazo_last_answered_day', '0'));
+
+    if (storedLastDay > contractDay) {
+      removeStorage('genazo_last_answered_day');
+      removeStorage('genazo_session_answers_' + storedLastDay);
+      removeStorage('genazo_final_score_' + storedLastDay);
+      sessionAnswers = {};
+      currentRiddleIndex = 0;
+    }
+
     if (S.day !== null && S.day !== parsedDay) {
       sessionAnswers     = {};
       currentRiddleIndex = 0;
