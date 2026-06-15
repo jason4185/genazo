@@ -55,7 +55,7 @@ genazo/
 ├── contract/
 │   └── Genazo.py              # Main Intelligent Contract
 ├── frontend/
-│   ├── app/                   # Next.js app pages
+│   ├── app/                   # App pages
 │   ├── components/            # UI components
 │   └── lib/                   # Contract interaction
 └── README.md
@@ -65,19 +65,19 @@ genazo/
 
 ## GenLayer Features Used
 
-- `gl.nondet.exec_prompt()` — AI riddle generation from GenLayer documentation
-- `gl.nondet.web.render()` — Fetching GenLayer documentation content
-- `gl.eq_principle.prompt_comparative()` — Validator equivalence checking for riddle consensus
-- `@gl.public.view` — Leaderboard, player state, and riddle reads
-- `@gl.public.write` — Answer submission, player registration, riddle generation
-- JSON-serialised `str` storage — All on-chain state stored as JSON strings
+- `gl.nondet.exec_prompt()` — AI riddle generation
+- `gl.nondet.web.render()` — Fetching GenLayer documentation
+- `gl.eq_principle.prompt_comparative` — Consensus on riddle generation and doc fetching
+- `@gl.public.view` — Leaderboard and player state reads
+- `@gl.public.write` — Answer submission and player registration
+- `str` storage — Player data, leaderboards, riddles stored as JSON strings
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20+
 - No wallet needed — password based identity
 
 ### Run Locally
