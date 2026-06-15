@@ -34,8 +34,7 @@ Genazo is a daily riddle game built entirely on GenLayer Intelligent Contracts. 
 ### Frontend
 | Category | Technology |
 |----------|-----------|
-| Framework | Next.js + TypeScript |
-| Styling | Tailwind CSS |
+| Framework | Vite + Vanilla JavaScript |
 | Blockchain | genlayer-js |
 | Identity | Password-based — no wallet required |
 
@@ -66,13 +65,12 @@ genazo/
 
 ## GenLayer Features Used
 
-- `gl.nondet.exec_prompt()` — AI riddle generation and answer verification
-- `gl.nondet.web.get()` — Fetching GenLayer documentation
-- `gl.vm.run_nondet_unsafe()` — Custom validator logic
-- `gl.message_raw['datetime']` — Daily riddle rotation
-- `TreeMap`, `DynArray` — Player data and leaderboard storage
-- `@gl.public.view` — Leaderboard and player state reads
-- `@gl.public.write` — Answer submission and player registration
+- `gl.nondet.exec_prompt()` — AI riddle generation from GenLayer documentation
+- `gl.nondet.web.render()` — Fetching GenLayer documentation content
+- `gl.eq_principle.prompt_comparative()` — Validator equivalence checking for riddle consensus
+- `@gl.public.view` — Leaderboard, player state, and riddle reads
+- `@gl.public.write` — Answer submission, player registration, riddle generation
+- JSON-serialised `str` storage — All on-chain state stored as JSON strings
 
 ---
 
