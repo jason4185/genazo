@@ -1,52 +1,58 @@
-# Genazo
+# Genazo 🧩
 
-A daily on-chain riddle game powered by GenLayer Intelligent Contracts.
+> A daily on-chain riddle game powered by GenLayer Intelligent Contracts.
 
-**Live Demo:** https://www.genazo.xyz
+**Live Demo:** https://www.genazo.xyz · **Network:** GenLayer Studionet
 
 ---
 
-## Overview
+## What It Does
 
-Genazo is a daily riddle game built entirely on GenLayer Intelligent Contracts. Every day up to 5 new riddles about GenLayer drop on-chain. The contract generates questions from GenLayer documentation using AI. Players answer them, earn points, and build streaks. When a player answers, the same AI verifies if the answer is correct. No human is involved at any stage.
+- 5 new riddles about GenLayer drop on-chain every day
+- GenLayer Intelligent Contracts generate the questions directly from GenLayer documentation
+- Players answer, earn points, and build streaks — all tracked on-chain
+- The same Intelligent Contract that generates riddles verifies your answers
+- No human is involved at any stage — not even the developer
+
+---
+
+## Quick Demo
+
+git clone https://github.com/jason4185/genazo
+cd genazo/frontend
+npm install
+npm run dev
+
+Visit http://localhost:3000 · No wallet needed · Just a username and password
+
+---
+
+## UI Tour
+
+### Landing Screen
+![Landing](./screenshots/genazo-landing.png)
+Clean entry point. Username and password only. No MetaMask popup. No seed phrase anxiety. Your identity is a SHA-256 hash of your credentials — derived on-chain, never stored anywhere.
+
+### Riddle Screen
+![Riddle](./screenshots/genazo-riddle.png)
+One riddle at a time. Four options. A subtle hint if you need it. Your answer submits to the blockchain in the background while you see instant feedback on screen.
+
+### Result Screen
+![Result](./screenshots/genazo-result.png)
+Correct answer revealed immediately. The explanation was written by a GenLayer Intelligent Contract — not a human. Every result is verifiable on-chain.
 
 ---
 
 ## How It Works
 
-| Step | Description |
-|------|-------------|
-| Play | Visit the site and enter a username and password — no wallet needed |
-| Answer | Submit your answer to the daily GenLayer riddle |
-| Verify | A GenLayer Intelligent Contract verifies your answer using AI |
-| Score | Earn points and build streaks tracked entirely on-chain |
-| Compete | Leaderboard updates after every answer across all devices |
-
----
-
-## Tech Stack
-
-### Smart Contract
-
-| Contract | Description |
-|----------|-------------|
-| Genazo.py | Main contract — riddle generation, answer verification, leaderboard, streaks, fingerprint system, deterministic shuffle |
-
-### Frontend
-
-| Category | Technology |
-|----------|------------|
-| Framework | Vite + Vanilla JavaScript |
-| Blockchain | genlayer-js |
-| Identity | Password-based session ID via SHA-256 — no wallet required |
-| Deployment | Vercel |
-
-### Automation
-
-| Tool | Description |
-|------|-------------|
-| GitHub Actions | Daily riddle generation at midnight UTC |
-| Node.js | v20 |
+1. GitHub Actions triggers at midnight UTC — calls the funded wallet script
+2. Script calls generate_daily_riddle() — once per riddle, up to 5 times
+3. Contract fetches GenLayer docs — via gl.nondet.web.render() from the knowledge page
+4. GenLayer Intelligent Contract generates the riddle — gl.nondet.exec_prompt() with topic forcing
+5. Validators reach consensus — gl.eq_principle.prompt_comparative confirms equivalence
+6. Script calls mark_generation_complete() — signals frontend riddles are ready
+7. Player answers — submit_daily_answer() checks correct letter instantly
+8. Leaderboard updates — partial update after every answer, full update when day is complete
 
 ---
 
@@ -54,89 +60,68 @@ Genazo is a daily riddle game built entirely on GenLayer Intelligent Contracts. 
 
 | Contract | Address | Network |
 |----------|---------|---------|
-| Genazo | 0xf6D5Eb24b26F11c174dd852A65C33A1F99A90D9b | GenLayer Studionet |
+| Genazo.py | 0xf6D5Eb24b26F11c174dd852A65C33A1F99A90D9b | GenLayer Studionet |
 
 ---
 
-## GenLayer Features Used
+## Project Structure
 
-| Feature | Usage |
-|---------|-------|
-| gl.nondet.web.render() | Fetches GenLayer documentation as plain text |
-| gl.nondet.exec_prompt() | AI riddle generation with topic forcing |
-| gl.eq_principle.prompt_comparative | Consensus on docs fetching and riddle generation |
-| @gl.public.write | Answer submission, player registration, riddle generation |
-| @gl.public.view | Leaderboard reads, player state, day number, generation status |
-| str storage | Player data, leaderboards, riddles, fingerprints stored as JSON strings |
-
----
-
-## Key Technical Decisions
-
-| Problem | Solution |
-|---------|----------|
-| JavaScript docs causing UNDETERMINED | Built plain static HTML knowledge page |
-| Validators disagreeing on riddle wording | Lenient prompt_comparative equivalence check |
-| Answer always being option A | Deterministic shuffle using day and riddle number as seed |
-| Riddles repeating topics | Fingerprint system stored on-chain |
-| No wallet friction | SHA-256 password-based session identity |
-| Cross-device sync | On-chain answer retrieval on login |
-
----
-
-## Repository Structure
-
-```
 genazo/
 ├── contract/
-│   └── Genazo.py              # Main Intelligent Contract
+│   └── Genazo.py
 ├── frontend/
-│   └── main.js                # App logic and contract interaction
+│   └── main.js
 ├── scripts/
-│   └── daily-riddle.js        # Riddle generation automation script
+│   └── daily-riddle.js
 ├── .github/
 │   └── workflows/
-│       └── daily-riddle.yml   # GitHub Actions daily trigger
-├── SKILL.md                   # Community guide for building on GenLayer
+│       └── daily-riddle.yml
+├── screenshots/
+├── SKILL.md
 └── README.md
-```
 
 ---
 
-## Getting Started
+## GenLayer Methods Used
 
-### Prerequisites
+| Method | Where | What It Does |
+|--------|-------|--------------|
+| gl.nondet.web.render() | generate_daily_riddle | Fetches plain text from the knowledge page |
+| gl.nondet.exec_prompt() | generate_daily_riddle | Generates riddle JSON with topic forcing |
+| gl.eq_principle.prompt_comparative | generate_daily_riddle | Consensus on docs fetch and riddle generation |
+| @gl.public.write | register_player, generate_daily_riddle, submit_daily_answer, mark_generation_complete | All state-changing operations |
+| @gl.public.view | get_daily_riddle, get_player, get_player_answers, get_leaderboards, get_day_number, get_generation_status | All read operations |
+| str storage | All state variables | Player data, riddles, answers, leaderboards stored as JSON strings |
 
-```
+---
+
+## MVP Roadmap
+
+### MVP 1 — Current
+- [x] Daily riddle generation via GitHub Actions
+- [x] GenLayer Intelligent Contract answer verification
+- [x] Streak and points system
+- [x] All Time and Weekly leaderboards
+- [x] Cross-device sync
+- [x] Transaction hash as proof
+- [x] Password-based identity — no wallet required
+
+### MVP 2 — Planned
+- [ ] MetaMask wallet integration for on-chain identity
+- [ ] Increase riddles per day from 5 to 10
+- [ ] Move to GenLayer Bradbury testnet
+
+---
+
+## Prerequisites
+
 Node.js 20+
-No wallet needed — password based identity
-```
-
-### Run Locally
-
-```bash
-git clone https://github.com/jason4185/genazo
-cd genazo/frontend
-npm install
-npm run dev
-```
-
-Visit http://localhost:3000
+No wallet needed
 
 ---
 
-## Network
-
-Genazo runs on GenLayer Studionet.
+*P.S. Every riddle in this game was written by a GenLayer Intelligent Contract, verified by a GenLayer Intelligent Contract, and judged by a GenLayer Intelligent Contract. The developer has not written a single question. That is the whole point.*
 
 ---
 
-## Community
-
-A SKILL.md is included in this repo as a community guide for builders who want to build daily games or knowledge apps on GenLayer Intelligent Contracts.
-
-[View SKILL.md](./SKILL.md)
-
----
-
-Built by Jason · Port Harcourt, Nigeria · Submitted to the GenLayer Builder Program
+**Built by Jason · Submitted to the GenLayer Builder Program**
