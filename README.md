@@ -1,14 +1,12 @@
 # Genazo 
 
 Genazo is a daily on-chain riddle game built on GenLayer Intelligent Contracts.
-
 It transforms GenLayer documentation into daily riddles that are generated, verified, and scored entirely on-chain. Players solve these riddles to earn points, build streaks, and compete on leaderboards, with every part of the game loop handled autonomously by Intelligent Contracts.
 
 There is no backend logic, no manually written questions, and no human grading — everything from riddle generation to answer verification and scoring is executed on-chain.
 
 **Live Demo:** https://www.genazo.xyz · **Network:** GenLayer Studionet
 
----
 # The Vision
 
 Genazo explores whether knowledge games can operate autonomously on-chain.
@@ -17,19 +15,17 @@ Instead of humans creating content, grading answers, and managing progression sy
 
 The project demonstrates how Intelligent Contracts can power educational and knowledge-based applications without centralized control.
 
-⸻
-
 # Technical Pillars
 
 **Autonomous Knowledge Generation**
 
 Every day, Genazo generates five new riddles directly from GenLayer documentation. Questions are not manually written, curated, or stored in a traditional database.
 
-Equivalence Principle
+**Equivalence Principle**
 
 Genazo uses GenLayer’s Equivalence Principle to reach validator agreement on documentation retrieval and riddle generation despite non-deterministic outputs.
 
-Autonomous Verification
+**Autonomous Verification**
 
 Player answers are evaluated on-chain by Intelligent Contracts, with points, streaks, and leaderboard rankings updated automatically.
 
@@ -43,7 +39,6 @@ No riddles are manually authored. Daily content is generated directly from GenLa
 
 No administrator reviews answers, updates scores, or manages leaderboards.
 
-⸻
 
 # Why It Matters
 
