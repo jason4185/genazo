@@ -1,10 +1,57 @@
-# Genazo 🧩
+# Genazo 
 
-> A daily on-chain riddle game powered by GenLayer Intelligent Contracts.
+Genazo is a daily on-chain riddle game built on GenLayer Intelligent Contracts.
+
+It transforms GenLayer documentation into daily riddles that are generated, verified, and scored entirely on-chain. Players solve these riddles to earn points, build streaks, and compete on leaderboards, with every part of the game loop handled autonomously by Intelligent Contracts.
+
+There is no backend logic, no manually written questions, and no human grading — everything from riddle generation to answer verification and scoring is executed on-chain.
 
 **Live Demo:** https://www.genazo.xyz · **Network:** GenLayer Studionet
 
 ---
+# The Vision
+
+Genazo explores whether knowledge games can operate autonomously on-chain.
+
+Instead of humans creating content, grading answers, and managing progression systems, Genazo uses GenLayer Intelligent Contracts to generate daily riddles from documentation, evaluate responses, and maintain player progress autonomously.
+
+The project demonstrates how Intelligent Contracts can power educational and knowledge-based applications without centralized control.
+
+⸻
+
+# Technical Pillars
+
+Autonomous Knowledge Generation
+
+Every day, Genazo generates five new riddles directly from GenLayer documentation. Questions are not manually written, curated, or stored in a traditional database.
+
+Equivalence Principle
+
+Genazo uses GenLayer’s Equivalence Principle to reach validator agreement on documentation retrieval and riddle generation despite non-deterministic outputs.
+
+Autonomous Verification
+
+Player answers are evaluated on-chain by Intelligent Contracts, with points, streaks, and leaderboard rankings updated automatically.
+
+Persistent On-Chain State
+
+Player profiles, daily riddles, answers, streaks, points, and leaderboards are stored directly in contract state.
+
+Zero Human Moderation
+
+No riddles are manually authored. Daily content is generated directly from GenLayer documentation through Intelligent Contracts.
+
+No administrator reviews answers, updates scores, or manages leaderboards.
+
+⸻
+
+# Why It Matters
+
+Most educational platforms rely on centralized databases, manually created content, and trusted operators.
+
+Genazo demonstrates how GenLayer Intelligent Contracts can autonomously generate knowledge-based content, evaluate responses, maintain progression systems, and store persistent state entirely on-chain.
+
+While presented as a game, Genazo is ultimately a proof of concept for autonomous educational applications built on GenLayer.
 
 ## What It Does
 
