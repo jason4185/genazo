@@ -21,7 +21,7 @@ The project demonstrates how Intelligent Contracts can power educational and kno
 
 # Technical Pillars
 
-Autonomous Knowledge Generation
+**Autonomous Knowledge Generation**
 
 Every day, Genazo generates five new riddles directly from GenLayer documentation. Questions are not manually written, curated, or stored in a traditional database.
 
