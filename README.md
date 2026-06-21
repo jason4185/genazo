@@ -9,7 +9,7 @@ There is no backend logic, no manually written questions, and no human grading â
 
 # The Vision
 
-Genazo explores whether knowledge games can operate autonomously on-chain.
+Genazo explores whether Riddle games can operate autonomously on-chain.
 
 Instead of humans creating content, grading answers, and managing progression systems, Genazo uses GenLayer Intelligent Contracts to generate daily riddles from documentation, evaluate responses, and maintain player progress autonomously.
 
