@@ -17,15 +17,15 @@ The project demonstrates how Intelligent Contracts can power educational and kno
 
 # Technical Pillars
 
-**Autonomous Knowledge Generation** Every day, Genazo generates five new riddles directly from GenLayer documentation. Questions are not manually written, curated, or stored in a traditional database.
+**Autonomous Knowledge Generation** : Every day, Genazo generates five new riddles directly from GenLayer documentation. Questions are not manually written, curated, or stored in a traditional database.
 
-**Equivalence Principle** Genazo uses GenLayer’s Equivalence Principle to reach validator agreement on documentation retrieval and riddle generation despite non-deterministic outputs.
+**Equivalence Principle** : Genazo uses GenLayer’s Equivalence Principle to reach validator agreement on documentation retrieval and riddle generation despite non-deterministic outputs.
 
-**Autonomous Verification** Player answers are evaluated on-chain by Intelligent Contracts, with points, streaks, and leaderboard rankings updated automatically.
+**Autonomous Verification** : Player answers are evaluated on-chain by Intelligent Contracts, with points, streaks, and leaderboard rankings updated automatically.
 
-**Persistent On-Chain State** Player profiles, daily riddles, answers, streaks, points, and leaderboards are stored directly in contract state.
+**Persistent On-Chain State** : Player profiles, daily riddles, answers, streaks, points, and leaderboards are stored directly in contract state.
 
-**Zero Human Moderation** No riddles are manually authored. Daily content is generated directly from GenLayer documentation through Intelligent Contracts.
+**Zero Human Moderation** : No riddles are manually authored. Daily content is generated directly from GenLayer documentation through Intelligent Contracts.
 
 No administrator reviews answers, updates scores, or manages leaderboards.
 
